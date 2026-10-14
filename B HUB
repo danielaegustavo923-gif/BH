@@ -1,0 +1,1059 @@
+-- Bacon Hub V100
+-- Supported: sem título sem tag / Catalog Avatar Creator / Murder Mystery 2
+-- Combined with Forsaken Advanced Movement Engine
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local PathfindingService = game:GetService("PathfindingService")
+local TextChatService = game:GetService("TextChatService")
+
+local LocalPlayer = Players.LocalPlayer
+local Cam = workspace.CurrentCamera
+
+-- Global Customizable Keys
+local ToggleKey = Enum.KeyCode.F1
+local DestroyKey = Enum.KeyCode.Delete
+local AimbotKey = Enum.KeyCode.G -- CONFIGURADO PARA A TECLA G
+
+-- Global States
+local isExpanded = false
+local isSpeedBoostActive = false
+local isInfiniteJumpActive = false
+local isNoclipActive = false
+local currentSpeed = 100
+local isFlyActive = false
+local currentFlySpeed = 50
+local isForsakenBhopActive = false -- ESTADO PARA CONTROLAR A ENGINE DO FORSAKEN
+
+-- Freecam Fly States
+local FreecamAtivada = false
+local AncoraFreecam = nil
+local VelocidadeFreecam = 1.0
+
+-- Universal Aimbot States
+local MasterUniversalAimbot = false
+local limiteAlcanceUniversal = 250
+local ParteDoCorpoAlvo = "Head"
+local AimbotAtivoPorTecla = false
+local AlvoAtualGrudado = nil
+
+-- Hitbox Customization States
+local currentHitboxSize = Vector3.new(12, 12, 12)
+local currentHitboxColor = Color3.fromRGB(255, 0, 0)
+local currentHitboxMaterial = Enum.Material.Plastic
+local currentHitboxTransparency = 0.6 
+
+-- Catalog Stealer States
+local JogadorSelecionado = nil
+
+-- Waypoints & Player TP States
+local ListaWaypoints = {}
+local WaypointSelecionado = nil
+local NomeNovoWaypoint = "Waypoint Novo"
+local JogadorAlvoParaTP = nil
+
+-- MM2 Vision States
+local limiteAlcanceMM2 = 200
+local MasterMM2Aimbot = false
+local HighlightsMM2Ativado = false
+local CoresMM2 = {
+    Murder = Color3.fromRGB(255, 0, 0),
+    Sheriff = Color3.fromRGB(0, 0, 255),
+    Innocent = Color3.fromRGB(0, 255, 0)
+}
+
+-- MM2 Auto Play States
+local AutoPlayInocenteAtivado = false
+local AutoPlayMurderAtivado = false
+local ultimoCalculoRota = 0
+local ultimaExpansaoMurder = 0
+
+-- Text Corrector States
+local TextoDigitadoAtualmente = ""
+local TextoResultadoCorrigido = ""
+
+-- Elevator Platform States
+local PlataformaAtivada = false
+local PlataformaObjeto = nil
+local AlturaPlataforma = 0
+local VelocidadeElevador = 1.5
+
+-- AFK & Anti-AFK States
+local AntiAFKAtivado = false
+local AFKModeAtivado = false
+local AFKPlatform = nil
+local PosicaoOriginal = nil
+
+-- Connection Storage for Clean Up
+local Connections = {}
+
+-- ========================================
+-- FORSAKEN MOVEMENT CONFIG & DATA TYPES
+-- ========================================
+workspace.Gravity = 100
+
+local ForsakenConfig = {
+	VISUALIZE_FEET_HB = false,
+	VISUALIZE_COLLIDE_AND_SLIDE = false,
+	STEP_OFFSET = 1.2,
+	MASS = 16,
+	AIR_FRICTION = 0.4,
+	FRICTION = 6,
+	GRAVITY = 10,
+	JUMP_VELOCITY = 30,
+	GROUND_ACCEL = 14,
+	GROUND_DECCEL = 10,
+	AIR_ACCEL = 52,
+	AIR_SPEED = 50,
+	RUN_SPEED = 40,
+	WALK_SPEED = 20,
+	CROUCH_SPEED = 20,
+	AIR_MAX_SPEED = math.huge,
+	AIR_MAX_SPEED_FRIC = 300,
+	AIR_MAX_SPEED_FRIC_DEC = .5,
+	LEG_HEIGHT = 1.9+.3,
+	TORSO_TO_FEET = 3.1+1.9,
+	FEET_HB_SIZE = Vector3.new(1,0.1,1),
+	TORSO_HB_SIZE = Vector3.new(3,1,3),
+	FOOT_OFFSET_AMOUNT = 1.2,
+	MIN_SLOPE_ANGLE = 45,
+	MAX_SLOPE_ANGLE = 80,
+}
+
+local soundIds = {
+	"rbxassetid://7338942417",
+	"rbxassetid://7338942345",
+	"rbxassetid://7338942259",
+	"rbxassetid://7338942180",
+	"rbxassetid://7338942417",
+}
+local forsakenSounds = {}
+for _, id in ipairs(soundIds) do
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Volume = 2
+	sound.Parent = workspace
+	table.insert(forsakenSounds, sound)
+end
+
+local ForsakenMovement = {
+    Keys = {W = 0, S = 0, D = 0, A = 0, Space = 0},
+    states = {grounded = false, air_friction = 0, input_vec = Vector3.zero, surfing = false, jumping = false}
+}
+
+local Vec3Mod = {}
+Vec3Mod.__index = Vec3Mod
+function Vec3Mod.new(input)
+	input = input or Vector3.zero
+	return setmetatable({x = input.X, y = input.Y, z = input.Z}, Vec3Mod)
+end
+function Vec3Mod:ToVector3()
+	return Vector3.new(self.x, self.y, self.z)
+end
+
+-- ========================================
+-- CORE & BYPASS UTILITIES
+-- ========================================
+
+local function getHumanoid()
+    local char = LocalPlayer.Character
+    if char then return char:FindFirstChildOfClass("Humanoid") end
+    return nil
+end
+
+local function resetAllHitboxes()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local customBox = p.Character:FindFirstChild("BaconCustomHitbox")
+            if customBox then customBox:Destroy() end
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.Size = Vector3.new(2, 2, 1)
+                hrp.Transparency = 1
+            end
+        end
+    end
+end
+
+local function toggleFreecam(state)
+    FreecamAtivada = state
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if FreecamAtivada then
+        if hrp then
+            hrp.Anchored = true
+            AncoraFreecam = Instance.new("Part")
+            AncoraFreecam.Name = "BaconFreecamAnchor"
+            AncoraFreecam.Size = Vector3.new(1, 1, 1)
+            AncoraFreecam.CFrame = Cam.CFrame
+            AncoraFreecam.Transparency = 1
+            AncoraFreecam.CanCollide = false
+            AncoraFreecam.Anchored = true
+            AncoraFreecam.Parent = workspace
+            Cam.CameraSubject = AncoraFreecam
+        end
+    else
+        if hrp then hrp.Anchored = false end
+        local hum = getHumanoid()
+        if hum then Cam.CameraSubject = hum end
+        if AncoraFreecam then AncoraFreecam:Destroy() AncoraFreecam = nil end
+    end
+end
+
+-- ========================================
+-- ADVANCED CATALOG STEALER ENGINE
+-- ========================================
+
+local function uh()
+    local e = ReplicatedStorage:FindFirstChild("Events")
+    if e then
+        local r = e:FindFirstChild("CatalogGuiRemote")
+        if r then return r end
+    end
+    local r = ReplicatedStorage:FindFirstChild("CatalogGuiRemote")
+    if r then return r end
+    for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
+        if d.Name == "CatalogGuiRemote" and (d:IsA("RemoteFunction") or d:IsA("RemoteEvent")) then
+            return d
+        end
+    end
+end
+
+local function rgb(c)
+    if typeof(c) ~= "Color3" then
+        return {r = 255, g = 255, b = 255, IsRGBTable = true}
+    end
+    return {r = c.R * 255, g = c.G * 255, b = c.B * 255, IsRGBTable = true}
+end
+
+local function dict(d)
+    local p = {
+        HatAccessory = d.HatAccessory or "", HairAccessory = d.HairAccessory or "", FaceAccessory = d.FaceAccessory or "",
+        BackAccessory = d.BackAccessory or "", FrontAccessory = d.FrontAccessory or "", NeckAccessory = d.NeckAccessory or "",
+        ShouldersAccessory = d.ShouldersAccessory or "", WaistAccessory = d.WaistAccessory or "", Face = d.Face or 0,
+        Head = d.Head or 0, Torso = d.Torso or 0, LeftArm = d.LeftArm or 0, RightArm = d.RightArm or 0, LeftLeg = d.LeftLeg or 0,
+        RightLeg = d.RightLeg or 0, Shirt = d.Shirt or 0, Pants = d.Pants or 0, GraphicTShirt = d.GraphicTShirt or 0,
+        HeadColor = rgb(d.HeadColor), TorsoColor = rgb(d.TorsoColor), LeftArmColor = rgb(d.LeftArmColor), RightArmColor = rgb(d.RightArmColor),
+        LeftLegColor = rgb(d.LeftLegColor), RightLegColor = rgb(d.RightLegColor), HeightScale = d.HeightScale or 1, WidthScale = d.WidthScale or 1,
+        DepthScale = d.DepthScale or 1, HeadScale = d.HeadScale or 1, BodyTypeScale = d.BodyTypeScale or 0, ProportionScale = d.ProportionScale or 0,
+        ClimbAnimation = d.ClimbAnimation or 0, FallAnimation = d.FallAnimation or 0, IdleAnimation = d.IdleAnimation or 0, JumpAnimation = d.JumpAnimation or 0,
+        MoodAnimation = d.MoodAnimation or 0, RunAnimation = d.RunAnimation or 0, SwimAnimation = d.SwimAnimation or 0, WalkAnimation = d.WalkAnimation or 0,
+        MakeupItems = {}, AccessoryRefinements = {}, LayeredAccessories = {}, StaticFacialAnimation = false,
+    }
+    pcall(function()
+        local a = d:GetAccessories(true)
+        if type(a) ~= "table" then return end
+        local o = {}
+        for _, x in ipairs(a) do
+            if type(x) == "table" and x.AssetId then
+                o[#o + 1] = { AssetId = x.AssetId, AccessoryType = tostring(x.AccessoryType or ""), Order = x.Order, Puffiness = x.Puffiness }
+            end
+        end
+        p.LayeredAccessories = o
+    end)
+    return p
+end
+
+local function descfrom(plr)
+    if not plr then return end
+    local h = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+    if h then
+        local ok, live = pcall(function() return h:GetAppliedDescription() end)
+        if ok and live and live:IsA("HumanoidDescription") then return live, h.RigType end
+    end
+    local ok, d = pcall(function() return Players:GetHumanoidDescriptionFromUserId(plr.UserId) end)
+    if ok and d and d:IsA("HumanoidDescription") then return d, Enum.HumanoidRigType.R15 end
+end
+
+local function go(d, r)
+    local rem = uh()
+    if not rem then return end
+    local p = { Action = "CreateAndWearHumanoidDescription", Properties = dict(d), RigType = r or Enum.HumanoidRigType.R15 }
+    pcall(function()
+        if rem:IsA("RemoteFunction") then rem:InvokeServer(p) else rem:FireServer(p) end
+    end)
+end
+
+local function roubarSkinDoJogadorSelecionado()
+    if not JogadorSelecionado then warn("[Bacon Hub] Nenhum jogador alvo selecionado na lista.") return end
+    local d, r = descfrom(JogadorSelecionado)
+if d then go(d, r) print("[Bacon Hub] Skin de " .. JogadorSelecionado.Name .. " roubada com sucesso!") else warn("[Bacon Hub] Falha ao extrair dados do personagem.") end
+end
+local function enviarMensagemChat(texto)
+pcall(function()
+if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+local channel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+if channel then channel:SendAsync(texto) end
+else
+ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents").SayMessageRequest:FireServer(texto, "All")
+end
+end)
+end
+-- ========================================
+-- HIGH-END DICIO & AUTOMATION UTILITIES
+-- ========================================
+local function executarCorrecaoDeTexto(textoBruto)
+if not textoBruto or string.len(textoBruto) == 0 then return "" end
+textoBruto = string.gsub(textoBruto, "o+", "o")
+textoBruto = string.gsub(textoBruto, "a+", "a")
+textoBruto = string.gsub(textoBruto, "e+", "e")
+textoBruto = string.gsub(textoBruto, "i+", "i")
+textoBruto = string.gsub(textoBruto, "%bvc%", "você")
+textoBruto = string.gsub(textoBruto, "%bvcs%", "vocês")
+textoBruto = string.gsub(textoBruto, "%bpq%", "porque")
+textoBruto = string.gsub(textoBruto, "%boq%", "o que")
+textoBruto = string.gsub(textoBruto, "%btbm%", "também")
+textoBruto = string.gsub(textoBruto, "%bmt%", "muito")
+textoBruto = string.gsub(textoBruto, "%btd%", "tudo")
+textoBruto = string.upper(string.sub(textoBruto, 1, 1)) .. string.sub(textoBruto, 2)
+local ultimo = string.sub(textoBruto, -1)
+if ultimo ~= "." and ultimo ~= "!" and ultimo ~= "?" then textoBruto = textoBruto .. "." end
+return textoBruto
+end
+local function obterAlvoAimbotUniversal()
+local menorDistancia = math.huge
+local melhorAlvo = nil
+local meuChar = LocalPlayer.Character
+local meuHrp = meuChar and meuChar:FindFirstChild("HumanoidRootPart")
+if not meuHrp then return nil end
+for _, jogador in pairs(Players:GetPlayers()) do
+if jogador ~= LocalPlayer and jogador.Character and jogador.Character:FindFirstChildOfClass("Humanoid") then
+local charInimigo = jogador.Character
+local parteAlvo = charInimigo:FindFirstChild(ParteDoCorpoAlvo)
+if not parteAlvo and (ParteDoCorpoAlvo == "Torso" or ParteDoCorpoAlvo == "UpperTorso") then
+parteAlvo = charInimigo:FindFirstChild("HumanoidRootPart") or charInimigo:FindFirstChild("UpperTorso") or charInimigo:FindFirstChild("Torso")
+end
+if parteAlvo and parteAlvo:IsA("BasePart") then
+local hum = charInimigo:FindFirstChildOfClass("Humanoid")
+if hum.Health > 0 then
+local _, visivel = Cam:WorldToViewportPoint(parteAlvo.Position)
+if visivel then
+local dist = (meuHrp.Position - parteAlvo.Position).Magnitude
+if dist <= limiteAlcanceUniversal and dist < menorDistancia then
+menorDistancia = dist
+melhorAlvo = parteAlvo
+end
+end
+end
+end
+end
+end
+return melhorAlvo
+end
+local function obterCorDaFuncaoMM2(player)
+local char = player.Character
+if not char then return Color3.fromRGB(0, 255, 0) end
+for _, item in ipairs(char:GetChildren()) do
+if item:IsA("Tool") then
+local nome = item.Name:lower()
+if nome:find("knife") or nome:find("faca") then return Color3.fromRGB(255, 0, 0) end
+if nome:find("gun") or nome:find("arma") then return Color3.fromRGB(0, 0, 255) end
+end
+end
+return Color3.fromRGB(0, 255, 0)
+end
+-- ========================================
+-- FORSAKEN MATH ENGINE OPERATIONS
+-- ========================================
+local function flattenVectorAgainstWall(moveVector, normal)
+if moveVector.Magnitude == 0 and normal.Magnitude == 0 then return Vector3.zero end
+normal = normal.Unit
+local reflected = moveVector - 2 * moveVector:Dot(normal) * normal
+local parallel = moveVector + reflected
+if parallel.Magnitude == 0 then return Vector3.zero end
+return parallel.Unit:Dot(moveVector.Unit) * parallel.Unit * moveVector.Magnitude
+end
+local function forsakenCollideAndSlide(wishedSpeed)
+if wishedSpeed.Magnitude == 0 then return wishedSpeed end
+local inputVec = ForsakenMovement.states.input_vec
+local newSpeed = wishedSpeed
+local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if not hrp then return wishedSpeed end
+local params = RaycastParams.new()
+params.FilterDescendantsInstances = {LocalPlayer.Character, Cam}
+params.FilterType = Enum.RaycastFilterType.Exclude
+params.CollisionGroup = "PlayerMovement"
+wishedSpeed *= 2
+local dirAmnt = 1.375
+local mainDirAmnt = 1.55
+local isSticking = false
+local partsAlreadyHit = {}
+local lookVecs = { Vector3.new(0, (-ForsakenConfig.TORSO_TO_FEET) + ForsakenConfig.STEP_OFFSET, 0), Vector3.new(0, 0, 0), Vector3.new(0, 2, 0) }
+for _, v in pairs(lookVecs) do
+local values = {}
+local hval = {}
+local currForDir, currSideDir
+local rayPos = hrp.Position + v
+if inputVec.X > 0 then
+currForDir = hrp.CFrame.RightVector table.insert(values, currForDir)
+table.insert(hval, hrp.CFrame.LookVector * dirAmnt) table.insert(hval, -hrp.CFrame.LookVector * dirAmnt)
+elseif inputVec.X < 0 then
+currForDir = -hrp.CFrame.RightVector table.insert(values, currForDir)
+table.insert(hval, hrp.CFrame.LookVector * dirAmnt) table.insert(hval, -hrp.CFrame.LookVector * dirAmnt)
+end
+if inputVec.Z > 0 then
+currSideDir = -hrp.CFrame.LookVector table.insert(values, currSideDir)
+table.insert(hval, hrp.CFrame.RightVector * dirAmnt) table.insert(hval, -hrp.CFrame.RightVector * dirAmnt)
+elseif inputVec.Z < 0 then
+currSideDir = hrp.CFrame.LookVector table.insert(values, currSideDir)
+table.insert(hval, hrp.CFrame.RightVector * dirAmnt) table.insert(hval, -hrp.CFrame.RightVector * dirAmnt)
+end
+if inputVec.Z == 0 and inputVec.X == 0 then
+values = wishedSpeed.Unit
+table.insert(hval, CFrame.new(wishedSpeed.Unit).RightVector * dirAmnt) table.insert(hval, -CFrame.new(wishedSpeed.Unit).RightVector * dirAmnt)
+else
+table.insert(values, wishedSpeed.Unit * dirAmnt)
+end
+if currForDir and currSideDir then
+for a, b in pairs(values) do values[a] = b * mainDirAmnt end
+table.insert(values, (currForDir+currSideDir) * mainDirAmnt)
+else
+values *= mainDirAmnt
+table.insert(values, (values + hval).Unit * mainDirAmnt)
+table.insert(values, (values + hval).Unit * mainDirAmnt)
+table.insert(values, hval) table.insert(values, hval)
+end
+for _, b in pairs(values) do
+if not b then continue end
+local result = workspace:Raycast(rayPos, b, params)
+if not result then continue end
+if table.find(partsAlreadyHit, result.Instance) then continue end
+table.insert(partsAlreadyHit, result.Instance)
+local _v =  newSpeed.Unit * result.Normal
+for _, c in pairs({_v.X, _v.Y, _v.Z}) do if math.abs(c) > 0 then _v = c break end end
+if type(_v) == "number" and _v > 0 then continue end
+isSticking = true
+newSpeed = flattenVectorAgainstWall(newSpeed, result.Normal)
+newSpeed -= result.Instance.Velocity
+if ForsakenMovement.mover then ForsakenMovement.mover.PlaneVelocity = Vector2.new(newSpeed.X, newSpeed.Z) end
+end
+end
+return newSpeed
+end
+local function forsakenIsGrounded(dir)
+local params = RaycastParams.new()
+params.FilterDescendantsInstances = {LocalPlayer.Character, Cam}
+params.FilterType = Enum.RaycastFilterType.Exclude
+params.CollisionGroup = "PlayerMovement"
+local hrp = ForsakenMovement.collider
+if not hrp then return false end
+local cf = CFrame.new(hrp.Position) - Vector3.new(0, hrp.Size.Y/2, 0)
+dir = dir or Vector3.new(0, -1 * hrp.Size.Y - ForsakenConfig.FOOT_OFFSET_AMOUNT, 0)
+local result = workspace:Blockcast(cf, ForsakenConfig.FEET_HB_SIZE, dir, params)
+if not result or not result.Normal then return false end
+local steepness = math.deg(math.acos(result.Normal:Dot(Vector3.yAxis)))
+if type(steepness) ~= "number" or steepness ~= steepness then return false end
+local isSurfing = steepness >= ForsakenConfig.MIN_SLOPE_ANGLE and steepness <= ForsakenConfig.MAX_SLOPE_ANGLE
+if isSurfing then return false, true, result, steepness end
+return true, false, result
+end
+local function forsakenGetMovementDirection(groundNormal)
+local forward = ForsakenMovement.Keys.W + -ForsakenMovement.Keys.S
+local side = ForsakenMovement.Keys.A + -ForsakenMovement.Keys.D
+groundNormal = groundNormal or Vector3.new(0,1,0)
+if forward == 0 and side == 0 then
+ForsakenMovement.states.input_vec = Vector3.zero
+return Vector3.zero
+else
+ForsakenMovement.states.input_vec = Vector3.new(-side, 0, -forward).Unit
+local forwardMove = groundNormal:Cross(ForsakenMovement.collider.CFrame.RightVector)
+local sideMove = groundNormal:Cross(forwardMove)
+return (forwardMove * forward + sideMove * side).Unit
+end
+end
+local function forsakenClipVelocity(input, normal, output, overbounce)
+local angle = normal.Y
+local blocked = 0
+if angle > 0 then blocked = 1 end
+if angle == 0 then blocked = 2 end
+local backoff = input:Dot(normal) * overbounce
+local coords = {"X", "Y", "Z"}
+for i = 1, 3 do
+local ci = coords[i]
+output[ci] = input[ci] - (normal[ci] * backoff)
+end
+local adjust = output:ToVector3():Dot(normal)
+if adjust < 0 then output = output:ToVector3() - (normal * adjust) end
+return blocked
+end
+local function forsakenTraceReflect(velocity, origin)
+local endp = origin + (velocity * ForsakenMovement.dt)
+local isGrounded, isSurfing, hit = forsakenIsGrounded(velocity.Unit * ((origin - endp).Magnitude + 0.1))
+if hit then
+local output = Vec3Mod.new(velocity)
+forsakenClipVelocity(velocity, hit.Normal, output, 1)
+return output:ToVector3(), 1
+end
+return velocity, 0
+end
+local function forsakenApplyFriction(modifier, inAir)
+local vel = inAir and ForsakenMovement.collider.Velocity or Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y)
+local speed = vel.Magnitude
+modifier = modifier or 1
+if speed <= 0 then return vel end
+if not inAir and ForsakenMovement.states.input_vec.Magnitude > 0 and speed > 30 then return vel end
+if not inAir and ForsakenMovement.states.input_vec.Magnitude == 0 and modifier == 1 then modifier = 8 end
+local fric = inAir and ForsakenConfig.AIR_FRICTION or ForsakenConfig.FRICTION
+local control = speed < ForsakenConfig.GROUND_DECCEL and ForsakenConfig.GROUND_DECCEL or speed
+local drop = control * fric * ForsakenMovement.dt * modifier
+if type(drop) ~= "number" then drop = drop.Magnitude end
+local newSpeed = math.max(speed - drop, 0)
+if not inAir and ForsakenMovement.states.input_vec.Magnitude > 0 then newSpeed = math.max(newSpeed, 30) end
+if speed > 0 and newSpeed > 0 then newSpeed /= speed end
+vel *= newSpeed
+ForsakenMovement.mover.PlaneVelocity = Vector2.new(vel.X, vel.Z)
+end
+local function forsakenApplyGroundVelocity(groundNormal)
+local wishDir = forsakenGetMovementDirection(groundNormal)
+local wishSpeed = wishDir.Magnitude * ForsakenConfig.RUN_SPEED
+local currentGroundSpeed = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y).Magnitude
+if ForsakenMovement.states.air_friction > 0 and currentGroundSpeed < 5 and wishDir.Magnitude == 0 then
+ForsakenMovement.states.air_friction = 0
+end
+if ForsakenMovement.states.air_friction <= 0 then
+forsakenApplyFriction(1, false)
+else
+local sub = ForsakenConfig.AIR_MAX_SPEED_FRIC_DEC * ForsakenMovement.dt * 60
+local curr = ForsakenMovement.states.air_friction
+local fric = curr - sub
+forsakenApplyFriction(math.max(1, fric/ForsakenConfig.FRICTION), false)
+ForsakenMovement.states.air_friction = math.max(0, curr - sub)
+end
+local currentVelocity = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y)
+local currentSpeed = currentVelocity:Dot(wishDir)
+local addSpeed = wishSpeed - currentSpeed
+if addSpeed > 0 then
+local accelerationSpeed = math.min(ForsakenConfig.GROUND_ACCEL * ForsakenMovement.dt * wishSpeed, addSpeed)
+local newVelocity = currentVelocity + (accelerationSpeed * wishDir)
+ForsakenMovement.mover.PlaneVelocity = Vector2.new(newVelocity.X, newVelocity.Z)
+end
+forsakenCollideAndSlide(Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y))
+end
+local function forsakenApplyAirVelocity()
+local vel = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y)
+local wishDir = forsakenGetMovementDirection(Vector3.new(0,1,0))
+local wishSpeed = wishDir.Magnitude * ForsakenConfig.AIR_SPEED
+if vel.Magnitude > ForsakenConfig.AIR_MAX_SPEED then ForsakenMovement.states.air_friction = ForsakenConfig.AIR_MAX_SPEED_FRIC end
+if ForsakenMovement.states.air_friction > 0 and not ForsakenMovement.states.surfing then forsakenApplyFriction(0.01 * ForsakenMovement.states.air_friction, false) end
+local currentVelocity = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y)
+local currentSpeed = currentVelocity:Dot(wishDir)
+local addSpeed = wishSpeed - currentSpeed
+if addSpeed > 0 then
+local accelerationSpeed = math.min(ForsakenConfig.AIR_ACCEL * ForsakenMovement.dt * wishSpeed, addSpeed)
+local newVelocity = currentVelocity + (accelerationSpeed * wishDir)
+ForsakenMovement.mover.PlaneVelocity = Vector2.new(newVelocity.X, newVelocity.Z)
+end
+local refVel = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, ForsakenMovement.collider.Velocity.Y, ForsakenMovement.mover.PlaneVelocity.Y)
+local reflected = forsakenTraceReflect(refVel, ForsakenMovement.collider.Position)
+ForsakenMovement.mover.PlaneVelocity = Vector2.new(reflected.X, reflected.Z)
+end
+local function initForsakenEngine()
+ForsakenMovement.collider = LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+local mover = ForsakenMovement.collider:FindFirstChild("ForsakenMoverAttachment")
+if not mover then
+local a0 = Instance.new("Attachment", ForsakenMovement.collider)
+a0.Name = "ForsakenMoverAttachment"
+local lm = Instance.new("LinearVelocity", ForsakenMovement.collider)
+lm.Name = "ForsakenLinearMover"
+lm.Attachment0 = a0
+lm.MaxForce = 10000000
+lm.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
+lm.PrimaryTangentAxis = Vector3.new(1,0,0)
+lm.SecondaryTangentAxis = Vector3.new(0,0,1)
+ForsakenMovement.mover = lm
+else
+ForsakenMovement.mover = ForsakenMovement.collider:FindFirstChild("ForsakenLinearMover")
+end
+end
+-- ========================================
+-- GUI CREATION (BACON HUB VISUAL CONTRAST)
+-- ========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "BaconHub"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+local mainFrame = Instance.new("ImageLabel")
+mainFrame.Size = UDim2.new(0, 550, 0, 350)
+mainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BackgroundTransparency = 1
+mainFrame.Image = "rbxassetid://131134468217147"
+mainFrame.ScaleType = Enum.ScaleType.Crop
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 35)
+topBar.BackgroundTransparency = 1
+topBar.Parent = mainFrame
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.Text = "Bacon Hub | Private Multi-Game Script"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 13
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.BackgroundTransparency = 1
+titleLabel.Parent = topBar
+local sidebar = Instance.new("ScrollingFrame")
+sidebar.Size = UDim2.new(0, 140, 1, -35)
+sidebar.Position = UDim2.new(0, 0, 0, 35)
+sidebar.BackgroundTransparency = 1
+sidebar.ScrollBarThickness = 0
+sidebar.Parent = mainFrame
+local sidebarLayout = Instance.new("UIListLayout")
+sidebarLayout.Padding = UDim.new(0, 4)
+sidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+sidebarLayout.Parent = sidebar
+Instance.new("UIPadding", sidebar).PaddingTop = UDim.new(0, 8)
+sidebarLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+sidebar.CanvasSize = UDim2.new(0, 0, 0, sidebarLayout.AbsoluteContentSize.Y + 20)
+end)
+local contentContainer = Instance.new("Frame")
+contentContainer.Size = UDim2.new(1, -140, 1, -35)
+contentContainer.Position = UDim2.new(0, 140, 0, 35)
+contentContainer.BackgroundTransparency = 1
+contentContainer.Parent = mainFrame
+local Pages = {}
+local function createPage(pageName)
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Size = UDim2.new(1, 0, 1, 0)
+scrollingFrame.BackgroundTransparency = 1
+scrollingFrame.ScrollBarThickness = 4
+scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
+scrollingFrame.Visible = false
+scrollingFrame.Parent = contentContainer
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 8)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Parent = scrollingFrame
+Instance.new("UIPadding", scrollingFrame).PaddingTop = UDim.new(0, 10)
+listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
+end)
+Pages[pageName] = scrollingFrame
+return scrollingFrame
+end
+local firstTab = true
+local function createTab(name)
+local tabBtn = Instance.new("TextButton")
+tabBtn.Size = UDim2.new(0.9, 0, 0, 32)
+tabBtn.BackgroundTransparency = 0.5
+tabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+tabBtn.Font = Enum.Font.GothamMedium
+tabBtn.Text = name
+tabBtn.TextSize = 12
+tabBtn.TextColor3 = firstTab and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+tabBtn.Parent = sidebar
+Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
+local page = createPage(name)
+if firstTab then page.Visible = true firstTab = false end
+tabBtn.MouseButton1Click:Connect(function()
+for _, p in pairs(Pages) do p.Visible = false end
+for _, b in ipairs(sidebar:GetChildren()) do if b:IsA("TextButton") then b.TextColor3 = Color3.fromRGB(200, 200, 200) end end
+page.Visible = true
+tabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+end)
+return page
+end
+local function createSection(parentPage, sectionTitle)
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0.92, 0, 0, 25)
+label.BackgroundTransparency = 1
+label.Text = sectionTitle
+label.Font = Enum.Font.GothamBold
+label.TextColor3 = Color3.fromRGB(255, 255, 255)
+label.TextSize = 13
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.Parent = parentPage
+end
+local function createToggle(parentPage, text, defaultState, callback)
+local state = defaultState
+local toggleFrame = Instance.new("Frame")
+toggleFrame.Size = UDim2.new(0.92, 0, 0, 40)
+toggleFrame.BackgroundTransparency = 0.5
+toggleFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+toggleFrame.Parent = parentPage
+Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 6)
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0.7, 0, 1, 0)
+label.Position = UDim2.new(0, 12, 0, 0)
+label.BackgroundTransparency = 1
+label.Text = text
+label.Font = Enum.Font.GothamMedium
+label.TextColor3 = Color3.fromRGB(255, 255, 255)
+label.TextSize = 12
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.Parent = toggleFrame
+local switch = Instance.new("TextButton")
+switch.Size = UDim2.new(0, 38, 0, 20)
+switch.Position = UDim2.new(1, -50, 0.5, -10)
+switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(100, 100, 100)
+switch.Text = ""
+switch.Parent = toggleFrame
+Instance.new("UICorner", switch).CornerRadius = UDim.new(0, 10)
+local circle = Instance.new("Frame")
+circle.Size = UDim2.new(0, 16, 0, 16)
+circle.Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+circle.Parent = switch
+Instance.new("UICorner", circle).CornerRadius = UDim.new(0, 8)
+switch.MouseButton1Click:Connect(function()
+state = not state
+switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(100, 100, 100)
+circle:TweenPosition(state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8), "Out", "Quart", 0.2, true)
+callback(state)
+end)
+return switch
+end
+local function createTextBox(parentPage, placeholder, defaultText, callback)
+local boxFrame = Instance.new("Frame")
+boxFrame.Size = UDim2.new(0.92, 0, 0, 40)
+boxFrame.BackgroundTransparency = 0.5
+boxFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+boxFrame.Parent = parentPage
+Instance.new("UICorner", boxFrame).CornerRadius = UDim.new(0, 6)
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0.5, 0, 1, 0)
+label.Position = UDim2.new(0, 12, 0, 0)
+label.BackgroundTransparency = 1
+label.Text = placeholder
+label.Font = Enum.Font.GothamMedium
+label.TextColor3 = Color3.fromRGB(255, 255, 255)
+label.TextSize = 12
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.Parent = boxFrame
+local box = Instance.new("TextBox")
+box.Size = UDim2.new(0, 100, 0, 26)
+box.Position = UDim2.new(1, -112, 0.5, -13)
+box.BackgroundTransparency = 0.3
+box.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+box.Text = defaultText
+box.Font = Enum.Font.GothamMedium
+box.TextColor3 = Color3.fromRGB(0, 255, 0)
+box.TextSize = 12
+box.Parent = boxFrame
+Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
+box.FocusLost:Connect(function(enterPressed) callback(box.Text) end)
+return box
+end
+local function createButton(parentPage, text, callback)
+local btnFrame = Instance.new("Frame")
+btnFrame.Size = UDim2.new(0.92, 0, 0, 40)
+btnFrame.BackgroundTransparency = 0.5
+btnFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+btnFrame.Parent = parentPage
+Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(0, 6)
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.new(1, 0, 1, 0)
+btn.BackgroundTransparency = 1
+btn.Text = text
+btn.Font = Enum.Font.GothamMedium
+btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+btn.TextSize = 12
+btn.Parent = btnFrame
+btn.MouseButton1Click:Connect(callback)
+return btn
+end
+-- ========================================
+-- INITIALIZING TABS & COMPONENTS
+-- ========================================
+local mainPage = createTab("Main / Movement")
+local forsakenPage = createTab("Forsaken Bhop")
+local combatPage = createTab("Combat / Hitbox")
+local universalAimbotPage = createTab("Universal Aimbot")
+local waypointPage = createTab("Waypoints")
+local mm2Page = createTab("MM2 Vision")
+local autoPlayPage = createTab("Auto Play Bot")
+local correctorPage = createTab("Text Corrector")
+local stealerPage = createTab("Catalog Stealer")
+local settingsPage = createTab("Configurações")
+local creditsPage = createTab("Credits")
+-- Main Page Content
+createSection(mainPage, "Movement Settings")
+createToggle(mainPage, "Enable Speed Hack", false, function(toggled)
+isSpeedBoostActive = toggled
+if not toggled then local hum = getHumanoid() if hum then hum.WalkSpeed = 16 end end
+end)
+createTextBox(mainPage, "Set Custom Speed Value", "100", function(text)
+local val = tonumber(text) if val then currentSpeed = val end
+end)
+createToggle(mainPage, "Infinite Jump", false, function(toggled) isInfiniteJumpActive = toggled end)
+createToggle(mainPage, "Noclip Mode", false, function(toggled) isNoclipActive = toggled end)
+createSection(mainPage, "Fly Engine")
+createToggle(mainPage, "Enable Fly", false, function(toggled)
+isFlyActive = toggled
+if not toggled then
+local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if hrp then hrp.Velocity = Vector3.new(0, 0, 0) end
+end
+end)
+createTextBox(mainPage, "Set Fly Speed", "50", function(text)
+local val = tonumber(text) if val then currentFlySpeed = val end
+end)
+createSection(mainPage, "Vertical Transport Gadget")
+createToggle(mainPage, "Open Elevator Platform (6x6)", false, function(toggled)
+PlataformaAtivada = toggled
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if toggled then
+if hrp then
+AlturaPlataforma = hrp.Position.Y - 3.5
+PlataformaObjeto = Instance.new("Part")
+PlataformaObjeto.Size = Vector3.new(6, 0.5, 6)
+PlataformaObjeto.Position = Vector3.new(hrp.Position.X, AlturaPlataforma, hrp.Position.Z)
+PlataformaObjeto.Anchored = true
+PlataformaObjeto.Material = Enum.Material.Glass
+PlataformaObjeto.Transparency = 0.4
+PlataformaObjeto.CanCollide = true
+PlataformaObjeto.Parent = workspace
+end
+else
+if PlataformaObjeto then PlataformaObjeto:Destroy() PlataformaObjeto = nil end
+end
+end)
+-- Forsaken Category Interface
+createSection(forsakenPage, "Forsaken Advanced Physics Engine")
+createToggle(forsakenPage, "Enable Forsaken Physics", false, function(toggled)
+isForsakenBhopActive = toggled
+if toggled then
+initForsakenEngine()
+if ForsakenMovement.mover then ForsakenMovement.mover.Enabled = true end
+else
+if ForsakenMovement.mover then ForsakenMovement.mover.Enabled = false end
+local hum = getHumanoid() if hum then hum.PlatformStand = false end
+end
+end)
+-- Combat Page Content
+createSection(combatPage, "Player Modification")
+createToggle(combatPage, "Expand Enemy Hitboxes", false, function(toggled)
+isExpanded = toggled if not toggled then resetAllHitboxes() end
+end)
+createTextBox(combatPage, "Set Hitbox Size", "12", function(text)
+local num = tonumber(text) if num then currentHitboxSize = Vector3.new(num, num, num) end
+end)
+createTextBox(combatPage, "Hitbox RGB Color", "255, 0, 0", function(text)
+local r, g, b = text:match("(%d+)%s*,%s*(%d+)%s*,%s*(%d+)")
+if r and g and b then currentHitboxColor = Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b)) end
+end)
+createTextBox(combatPage, "Hitbox Material/Texture", "Plastic", function(text)
+local success, mat = pcall(function() return Enum.Material[text] end)
+if success and mat then currentHitboxMaterial = mat end
+end)
+createTextBox(combatPage, "Hitbox Transparency (0 to 1)", "0.6", function(text)
+local num = tonumber(text) if num then currentHitboxTransparency = math.clamp(num, 0, 1) end
+end)
+-- Universal Aimbot Page Content
+createSection(universalAimbotPage, "Global Targeting Engine")
+createToggle(universalAimbotPage, "Enable Universal Aimbot", false, function(toggled)
+MasterUniversalAimbot = toggled
+if not toggled then AimbotAtivoPorTecla = false AlvoAtualGrudado = nil end
+end)
+createTextBox(universalAimbotPage, "Target Part (Head/Torso/HumanoidRootPart)", "Head", function(text)
+if text ~= "" then ParteDoCorpoAlvo = text end
+end)
+createTextBox(universalAimbotPage, "Max Aim Distance (Studs)", "250", function(text)
+local num = tonumber(text) if num then limiteAlcanceUniversal = num end
+end)
+-- Waypoints Page Content
+createSection(waypointPage, "Position Storage Engine")
+createTextBox(waypointPage, "Waypoint Name Input", "Waypoint Novo", function(text) NomeNovoWaypoint = text end)
+local statusWaypointLabel = Instance.new("TextLabel")
+statusWaypointLabel.Size = UDim2.new(0.92, 0, 0, 30) statusWaypointLabel.BackgroundTransparency = 0.5 statusWaypointLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+statusWaypointLabel.Text = "SELECTED WAYPOINT: NONE" statusWaypointLabel.TextColor3 = Color3.fromRGB(255, 170, 0) statusWaypointLabel.Font = Enum.Font.GothamBold statusWaypointLabel.TextSize = 11 statusWaypointLabel.Parent = waypointPage
+Instance.new("UICorner", statusWaypointLabel).CornerRadius = UDim.new(0, 6)
+local waypointListScroll = Instance.new("ScrollingFrame")
+waypointListScroll.Size = UDim2.new(0.92, 0, 0, 95) waypointListScroll.BackgroundTransparency = 0.5 waypointListScroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+waypointListScroll.ScrollBarThickness = 4 waypointListScroll.Parent = waypointPage
+Instance.new("UICorner", waypointListScroll).CornerRadius = UDim.new(0, 6)
+local waypointListLayout = Instance.new("UIListLayout") waypointListLayout.Padding = UDim.new(0, 4) waypointListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center waypointListLayout.Parent = waypointListScroll
+local function atualizarListaWaypoints()
+for _, child in pairs(waypointListScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+for nome, coord in pairs(ListaWaypoints) do
+local wBtn = Instance.new("TextButton") wBtn.Size = UDim2.new(0.95, 0, 0, 28) wBtn.BackgroundTransparency = 0.5 wBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+wBtn.Text = nome wBtn.Font = Enum.Font.Gotham wBtn.TextColor3 = Color3.fromRGB(255, 255, 255) wBtn.TextSize = 11 wBtn.Parent = waypointListScroll
+Instance.new("UICorner", wBtn).CornerRadius = UDim.new(0, 4)
+wBtn.MouseButton1Click:Connect(function()
+WaypointSelecionado = {Nome = nome, Posicao = coord}
+statusWaypointLabel.Text = "SELECTED WAYPOINT: " .. nome:upper()
+statusWaypointLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+end)
+end
+end
+waypointListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() waypointListScroll.CanvasSize = UDim2.new(0, 0, 0, waypointListLayout.AbsoluteContentSize.Y + 10) end)
+createButton(waypointPage, "SAVE CURRENT POSITION", function()
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if hrp and NomeNovoWaypoint ~= "" then ListaWaypoints[NomeNovoWaypoint] = hrp.Position atualizarListaWaypoints() end
+end)
+createButton(waypointPage, "TELEPORT TO WAYPOINT", function()
+if WaypointSelecionado then
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if hrp then hrp.CFrame = CFrame.new(WaypointSelecionado.Posicao + Vector3.new(0, 3, 0)) end
+end
+end)
+createSection(waypointPage, "Player Teleport Engine")
+local statusPlayerTpLabel = Instance.new("TextLabel")
+statusPlayerTpLabel.Size = UDim2.new(0.92, 0, 0, 30) statusPlayerTpLabel.BackgroundTransparency = 0.5 statusPlayerTpLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+statusPlayerTpLabel.Text = "TARGET PLAYER: NONE" statusPlayerTpLabel.TextColor3 = Color3.fromRGB(255, 75, 75) statusPlayerTpLabel.Font = Enum.Font.GothamBold statusPlayerTpLabel.TextSize = 11 statusPlayerTpLabel.Parent = waypointPage
+Instance.new("UICorner", statusPlayerTpLabel).CornerRadius = UDim.new(0, 6)
+local playerTpListScroll = Instance.new("ScrollingFrame")
+playerTpListScroll.Size = UDim2.new(0.92, 0, 0, 95) playerTpListScroll.BackgroundTransparency = 0.5 playerTpListScroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+playerTpListScroll.ScrollBarThickness = 4 playerTpListScroll.Parent = waypointPage
+Instance.new("UICorner", playerTpListScroll).CornerRadius = UDim.new(0, 6)
+local playerTpListLayout = Instance.new("UIListLayout") playerTpListLayout.Padding = UDim.new(0, 4) playerTpListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center playerTpListLayout.Parent = playerTpListScroll
+local function atualizarListaJogadoresTP()
+for _, child in pairs(playerTpListScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+for _, player in pairs(Players:GetPlayers()) do
+if player ~= LocalPlayer then
+local pBtn = Instance.new("TextButton") pBtn.Size = UDim2.new(0.95, 0, 0, 28) pBtn.BackgroundTransparency = 0.5 pBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+pBtn.Text = player.Name pBtn.Font = Enum.Font.Gotham pBtn.TextColor3 = Color3.fromRGB(255, 255, 255) pBtn.TextSize = 11 pBtn.Parent = playerTpListScroll
+Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 4)
+pBtn.MouseButton1Click:Connect(function()
+JogadorAlvoParaTP = player statusPlayerTpLabel.Text = "TARGET PLAYER: " .. player.Name:upper() statusPlayerTpLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+end)
+end
+end
+end
+playerTpListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() playerTpListScroll.CanvasSize = UDim2.new(0, 0, 0, playerTpListLayout.AbsoluteContentSize.Y + 10) end)
+createButton(waypointPage, "TELEPORT TO PLAYER", function()
+if JogadorAlvoParaTP and JogadorAlvoParaTP.Character then
+local targetHrp = JogadorAlvoParaTP.Character:FindFirstChild("HumanoidRootPart")
+local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if hrp and targetHrp then hrp.CFrame = targetHrp.CFrame + Vector3.new(0, 3, 0) end
+end
+end)
+Connections.PlayerAddedTP = Players.PlayerAdded:Connect(atualizarListaJogadoresTP)
+Connections.PlayerRemovingTP = Players.PlayerRemoving:Connect(atualizarListaJogadoresTP)
+atualizarListaJogadoresTP()
+-- MM2 Vision Page Content
+createSection(mm2Page, "Murder Mystery 2 Tracking")
+createToggle(mm2Page, "Enable Camera Aimbot Lock", false, function(toggled) MasterMM2Aimbot = toggled end)
+createToggle(mm2Page, "ESP Outline (Highlights)", false, function(toggled) HighlightsMM2Ativado = toggled gerenciarHighlightsMM2() end)
+createTextBox(mm2Page, "Max Distance (Studs)", "200", function(text) local num = tonumber(text) if num then limiteAlcanceMM2 = num end end)
+-- Auto Play Page Content
+createSection(autoPlayPage, "MM2 Role Automation")
+createToggle(autoPlayPage, "AI Survivor Bot (Innocent/Sheriff)", false, function(toggled) AutoPlayInocenteAtivado = toggled if not toggled then resetAllHitboxes() end end)
+createToggle(autoPlayPage, "AI Murderer Bot (Hunting Engine)", false, function(toggled) AutoPlayMurderAtivado = toggled end)
+-- Text Corrector Tab Content
+createSection(correctorPage, "Dicio.com.br AI Lexical Processor")
+local inputTextBox = createTextBox(correctorPage, "Type text here (Press Enter):", "analise esse poblema", function(text) TextoDigitadoAtualmente = text TextoResultadoCorrigido = executarCorrecaoDeTexto(text) end)
+local resultFrame = Instance.new("Frame") resultFrame.Size = UDim2.new(0.92, 0, 0, 40) resultFrame.BackgroundTransparency = 0.5 resultFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) resultFrame.Parent = correctorPage
+local labelIdentificar = Instance.new("TextLabel") labelIdentificar.Size = UDim2.new(0, 110, 1, 0) labelIdentificar.Position = UDim2.new(0, 12, 0, 0) labelIdentificar.BackgroundTransparency = 1 labelIdentificar.Text = "Dicio Analysis:" labelIdentificar.Font = Enum.Font.GothamBold labelIdentificar.TextColor3 = Color3.fromRGB(255, 255, 255) labelIdentificar.TextSize = 11 labelIdentificar.Parent = resultFrame
+local textDisplayOutput = Instance.new("TextLabel") textDisplayOutput.Size = UDim2.new(0.65, 0, 1, 0) textDisplayOutput.Position = UDim2.new(0, 125, 0, 0) textDisplayOutput.BackgroundTransparency = 1 textDisplayOutput.Text = "Waiting for input..." textDisplayOutput.Font = Enum.Font.GothamMedium textDisplayOutput.TextColor3 = Color3.fromRGB(0, 255, 0) textDisplayOutput.TextSize = 11 textDisplayOutput.Parent = resultFrame
+inputTextBox:GetPropertyChangedSignal("Text"):Connect(function() task.wait(0.02) textDisplayOutput.Text = executarCorrecaoDeTexto(inputTextBox.Text) end)
+createButton(correctorPage, "CLICK TO COPY CORRECTED TEXT", function() if textDisplayOutput.Text ~= "Waiting for input..." then setclipboard(textDisplayOutput.Text) end end)
+-- Catalog Stealer Content
+createSection(stealerPage, "Outfit Stealer Logic")
+local statusLabel = Instance.new("TextLabel") statusLabel.Size = UDim2.new(0.92, 0, 0, 30) statusLabel.BackgroundTransparency = 0.5 statusLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0) statusLabel.Text = "TARGET: NONE" statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0) statusLabel.Font = Enum.Font.GothamBold statusLabel.TextSize = 12 statusLabel.Parent = stealerPage
+local stealBtn = Instance.new("TextButton") stealBtn.Size = UDim2.new(0.92, 0, 0, 35) stealBtn.BackgroundTransparency = 0.5 stealBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20) stealBtn.Text = "STEAL OUTFIT" stealBtn.Font = Enum.Font.GothamBold stealBtn.TextColor3 = Color3.fromRGB(255, 255, 255) stealBtn.Parent = stealerPage
+Instance.new("UICorner", stealBtn).CornerRadius = UDim.new(0, 6)
+createButton(stealerPage, "SEND GLITCH COMMAND", function() enviarMensagemChat("/glitch 1") end)
+local playerListScroll = Instance.new("ScrollingFrame") playerListScroll.Size = UDim2.new(0.92, 0, 0, 110) playerListScroll.BackgroundTransparency = 0.5 playerListScroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0) playerListScroll.ScrollBarThickness = 4 playerListScroll.Parent = stealerPage
+Instance.new("UICorner", playerListScroll).CornerRadius = UDim.new(0, 6)
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 4)
+listLayout.SortOrder = Enum.SortOrder.Name
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.Parent = playerListScroll
+listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() playerListScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10) end)
+local function updatePlayerList()
+for _, child in pairs(playerListScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+for _, player in pairs(Players:GetPlayers()) do
+if player ~= LocalPlayer then
+local pBtn = Instance.new("TextButton") pBtn.Size = UDim2.new(0.95, 0, 0, 28) pBtn.BackgroundTransparency = 0.5 pBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+pBtn.Text = player.Name pBtn.TextColor3 = Color3.fromRGB(255, 255, 255) pBtn.Font = Enum.Font.Gotham pBtn.TextSize = 12 pBtn.Parent = playerListScroll
+Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 4)
+pBtn.MouseButton1Click:Connect(function()
+JogadorSelecionado = player statusLabel.Text = "TARGET: " .. player.Name:upper() statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+end)
+end
+end
+end
+stealBtn.MouseButton1Click:Connect(function() roubarSkinDoJogadorSelecionado() end)
+Connections.PlayerAddedSteal = Players.PlayerAdded:Connect(updatePlayerList)
+Connections.PlayerRemovingSteal = Players.PlayerRemoving:Connect(updatePlayerList)
+updatePlayerList()
+-- Settings Page Content
+createSection(settingsPage, "Key Bindings Configuration")
+createTextBox(settingsPage, "UI Toggle Key", "F1", function(text) local success, key = pcall(function() return Enum.KeyCode[text] end) if success and key then ToggleKey = key end end)
+createTextBox(settingsPage, "Uninstall Script Key", "Delete", function(text) local success, key = pcall(function() return Enum.KeyCode[text] end) if success and key then DestroyKey = key end end)
+createTextBox(settingsPage, "Aimbot Toggle Key", "G", function(text) local success, key = pcall(function() return Enum.KeyCode[text] end) if success and key then AimbotKey = key end end)
+createSection(settingsPage, "Cinematic & Exploration View")
+local freecamToggleSwitch = createToggle(settingsPage, "Enable Freecam (Alt + P)", false, function(toggled) toggleFreecam(toggled) end)
+createTextBox(settingsPage, "Freecam Move Speed", "1.0", function(text) local val = tonumber(text) if val then VelocidadeFreecam = val end end)
+createSection(settingsPage, "Automation Tools")
+createToggle(settingsPage, "Enable Anti-AFK (Bypass Disconnect)", false, function(toggled) AntiAFKAtivado = toggled end)
+createToggle(settingsPage, "Enable AFK Safe Mode", false, function(toggled)
+local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if toggled and hrp then
+PosicaoOriginal = hrp.CFrame
+AFKPlatform = Instance.new("Part") AFKPlatform.Size = Vector3.new(20, 2, 20) AFKPlatform.Position = Vector3.new(hrp.Position.X, 1500, hrp.Position.Z) AFKPlatform.Anchored = true AFKPlatform.Parent = workspace
+task.wait(0.1) hrp.CFrame = CFrame.new(AFKPlatform.Position + Vector3.new(0, 4, 0))
+elseif hrp and PosicaoOriginal then
+if AFKPlatform then AFKPlatform:Destroy() AFKPlatform = nil end
+hrp.CFrame = PosicaoOriginal PosicaoOriginal = nil
+end
+end)
+-- Credits Page Content
+createSection(creditsPage, "Bacon Hub Official Team")
+local ownerLabel = Instance.new("TextLabel") ownerLabel.Size = UDim2.new(0.92, 0, 0, 30) ownerLabel.BackgroundTransparency = 1 ownerLabel.Text = "Hub Owner: Bacon aura" ownerLabel.Font = Enum.Font.GothamBold ownerLabel.TextColor3 = Color3.fromRGB(255, 255, 255) ownerLabel.Parent = creditsPage
+local testerLabel = Instance.new("TextLabel") testerLabel.Size = UDim2.new(0.92, 0, 0, 30) testerLabel.BackgroundTransparency = 1 testerLabel.Text = "Beta Tester: Roxy" testerLabel.Font = Enum.Font.GothamBold testerLabel.TextColor3 = Color3.fromRGB(255, 255, 255) testerLabel.Parent = creditsPage
+-- ========================================
+-- SYSTEM CORE ENGINE LOOPS
+-- ========================================
+Connections.RenderStepped = RunService.RenderStepped:Connect(function(dt)
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+local hum = char and char:FindFirstChildOfClass("Humanoid")
+-- ENGINE FORSAKEN SUB-PROCESS LOOPS (Se ativo, gerencia a movimentacao)
+if isForsakenBhopActive and hum and hrp and ForsakenMovement.mover and not FreecamAtivada and not isFlyActive then
+ForsakenMovement.dt = dt
+local isGrounded, isSurfing, result = forsakenIsGrounded()
+ForsakenMovement.states.grounded = isGrounded or false
+ForsakenMovement.states.surfing = isSurfing or false
+if hrp.AssemblyLinearVelocity.Y < 0 then ForsakenMovement.states.jumping = false end
+-- Sincroniza a rotação do boneco com a camera estilo FPS
+local rotationLook = hrp.Position + Cam.CFrame.lookVector
+hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(rotationLook.X, hrp.Position.Y, rotationLook.Z))
+hrp.RotVelocity = Vector3.new()
+if ForsakenMovement.states.jumping or not ForsakenMovement.states.grounded then
+local groundNormal = isSurfing and result.Normal or false
+forsakenApplyAirVelocity()
+hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, hrp.AssemblyLinearVelocity.Y - (ForsakenConfig.GRAVITY * dt), hrp.AssemblyLinearVelocity.Z)
+elseif ForsakenMovement.Keys.Space > 0 then
+forsakenSounds[math.random(1, #forsakenSounds)]:Play()
+ForsakenMovement.states.jumping = true
+hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, ForsakenConfig.JUMP_VELOCITY, hrp.AssemblyLinearVelocity.Z)
+forsakenApplyAirVelocity()
+else
+forsakenApplyGroundVelocity(result.Normal)
+end
+end
+-- ENGINE LOOP: Nova Movimentação Física da Câmera Livre
+if FreecamAtivada and AncoraFreecam then
+local camMoveVector = Vector3.new(0, 0, 0)
+if UserInputService:IsKeyDown(Enum.KeyCode.W) then camMoveVector = camMoveVector + Cam.CFrame.LookVector end
+if UserInputService:IsKeyDown(Enum.KeyCode.S) then camMoveVector = camMoveVector - Cam.CFrame.LookVector end
+if UserInputService:IsKeyDown(Enum.KeyCode.A) then camMoveVector = camMoveVector - Cam.CFrame.RightVector end
+if UserInputService:IsKeyDown(Enum.KeyCode.D) then camMoveVector = camMoveVector + Cam.CFrame.RightVector end
+if UserInputService:IsKeyDown(Enum.KeyCode.Space) then camMoveVector = camMoveVector + Vector3.new(0, 1, 0) end
+if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then camMoveVector = camMoveVector - Vector3.new(0, 1, 0) end
+if camMoveVector.Magnitude > 0 then AncoraFreecam.CFrame = AncoraFreecam.CFrame + (camMoveVector.Unit * VelocidadeFreecam) end
+end
+if isSpeedBoostActive and not isFlyActive and not FreecamAtivada and not isForsakenBhopActive then
+if hum and hum.WalkSpeed ~= currentSpeed then hum.WalkSpeed = currentSpeed end
+end
+if isFlyActive and hrp and hum and not FreecamAtivada then
+local flyVelocity = Vector3.new(0, 0, 0)
+if UserInputService:IsKeyDown(Enum.KeyCode.W) then flyVelocity = flyVelocity + Cam.CFrame.LookVector end
+if UserInputService:IsKeyDown(Enum.Ke
