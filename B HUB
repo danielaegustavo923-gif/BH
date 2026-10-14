@@ -1,6 +1,6 @@
--- Bacon Hub V100
+-- Bacon Hub V28.0 (Ultimate Roblox Multi-Game Edition - Elevator Platform Update)
 -- Supported: sem título sem tag / Catalog Avatar Creator / Murder Mystery 2
--- Combined with Forsaken Advanced Movement Engine
+-- Powered by Bacon Bhop Physics Engine
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -16,7 +16,7 @@ local Cam = workspace.CurrentCamera
 -- Global Customizable Keys
 local ToggleKey = Enum.KeyCode.F1
 local DestroyKey = Enum.KeyCode.Delete
-local AimbotKey = Enum.KeyCode.G -- CONFIGURADO PARA A TECLA G
+local AimbotKey = Enum.KeyCode.G 
 
 -- Global States
 local isExpanded = false
@@ -26,7 +26,7 @@ local isNoclipActive = false
 local currentSpeed = 100
 local isFlyActive = false
 local currentFlySpeed = 50
-local isForsakenBhopActive = false -- ESTADO PARA CONTROLAR A ENGINE DO FORSAKEN
+local isBaconBhopActive = false -- NOVO ESTADO DO BACON BHOP
 
 -- Freecam Fly States
 local FreecamAtivada = false
@@ -91,11 +91,11 @@ local PosicaoOriginal = nil
 local Connections = {}
 
 -- ========================================
--- FORSAKEN MOVEMENT CONFIG & DATA TYPES
+-- BACON BHOP CONFIG & CORE LOGIC
 -- ========================================
 workspace.Gravity = 100
 
-local ForsakenConfig = {
+local BaconBhopConfig = {
 	VISUALIZE_FEET_HB = false,
 	VISUALIZE_COLLIDE_AND_SLIDE = false,
 	STEP_OFFSET = 1.2,
@@ -130,16 +130,16 @@ local soundIds = {
 	"rbxassetid://7338942180",
 	"rbxassetid://7338942417",
 }
-local forsakenSounds = {}
+local bhopSounds = {}
 for _, id in ipairs(soundIds) do
 	local sound = Instance.new("Sound")
 	sound.SoundId = id
 	sound.Volume = 2
 	sound.Parent = workspace
-	table.insert(forsakenSounds, sound)
+	table.insert(bhopSounds, sound)
 end
 
-local ForsakenMovement = {
+local BaconBhopMovement = {
     Keys = {W = 0, S = 0, D = 0, A = 0, Space = 0},
     states = {grounded = false, air_friction = 0, input_vec = Vector3.zero, surfing = false, jumping = false}
 }
@@ -154,10 +154,6 @@ function Vec3Mod:ToVector3()
 	return Vector3.new(self.x, self.y, self.z)
 end
 
--- ========================================
--- CORE & BYPASS UTILITIES
--- ========================================
-
 local function getHumanoid()
     local char = LocalPlayer.Character
     if char then return char:FindFirstChildOfClass("Humanoid") end
@@ -170,10 +166,7 @@ local function resetAllHitboxes()
             local customBox = p.Character:FindFirstChild("BaconCustomHitbox")
             if customBox then customBox:Destroy() end
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.Size = Vector3.new(2, 2, 1)
-                hrp.Transparency = 1
-            end
+            if hrp then hrp.Size = Vector3.new(2, 2, 1) hrp.Transparency = 1 end
         end
     end
 end
@@ -182,7 +175,6 @@ local function toggleFreecam(state)
     FreecamAtivada = state
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    
     if FreecamAtivada then
         if hrp then
             hrp.Anchored = true
@@ -204,29 +196,18 @@ local function toggleFreecam(state)
     end
 end
 
--- ========================================
--- ADVANCED CATALOG STEALER ENGINE
--- ========================================
-
 local function uh()
     local e = ReplicatedStorage:FindFirstChild("Events")
-    if e then
-        local r = e:FindFirstChild("CatalogGuiRemote")
-        if r then return r end
-    end
+    if e then local r = e:FindFirstChild("CatalogGuiRemote") if r then return r end end
     local r = ReplicatedStorage:FindFirstChild("CatalogGuiRemote")
     if r then return r end
     for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
-        if d.Name == "CatalogGuiRemote" and (d:IsA("RemoteFunction") or d:IsA("RemoteEvent")) then
-            return d
-        end
+        if d.Name == "CatalogGuiRemote" and (d:IsA("RemoteFunction") or d:IsA("RemoteEvent")) then return d end
     end
 end
 
 local function rgb(c)
-    if typeof(c) ~= "Color3" then
-        return {r = 255, g = 255, b = 255, IsRGBTable = true}
-    end
+    if typeof(c) ~= "Color3" then return {r = 255, g = 255, b = 255, IsRGBTable = true} end
     return {r = c.R * 255, g = c.G * 255, b = c.B * 255, IsRGBTable = true}
 end
 
@@ -273,29 +254,25 @@ local function go(d, r)
     local rem = uh()
     if not rem then return end
     local p = { Action = "CreateAndWearHumanoidDescription", Properties = dict(d), RigType = r or Enum.HumanoidRigType.R15 }
-    pcall(function()
-        if rem:IsA("RemoteFunction") then rem:InvokeServer(p) else rem:FireServer(p) end
-    end)
+    pcall(function() if rem:IsA("RemoteFunction") then rem:InvokeServer(p) else rem:FireServer(p) end end)
 end
 
 local function roubarSkinDoJogadorSelecionado()
-    if not JogadorSelecionado then warn("[Bacon Hub] Nenhum jogador alvo selecionado na lista.") return end
+    if not JogadorSelecionado then warn("[Bacon Hub] Nenhum jogador alvo selecionado.") return end
     local d, r = descfrom(JogadorSelecionado)
-if d then go(d, r) print("[Bacon Hub] Skin de " .. JogadorSelecionado.Name .. " roubada com sucesso!") else warn("[Bacon Hub] Falha ao extrair dados do personagem.") end
+    if d then go(d, r) print("[Bacon Hub] Skin roubada com sucesso!") else warn("[Bacon Hub] Falha ao extrair dados.") end
 end
+
 local function enviarMensagemChat(texto)
-pcall(function()
-if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-local channel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-if channel then channel:SendAsync(texto) end
-else
+    pcall(function()
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local channel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+            if channel then channel:SendAsync(texto) end
+        else
 ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents").SayMessageRequest:FireServer(texto, "All")
 end
 end)
 end
--- ========================================
--- HIGH-END DICIO & AUTOMATION UTILITIES
--- ========================================
 local function executarCorrecaoDeTexto(textoBruto)
 if not textoBruto or string.len(textoBruto) == 0 then return "" end
 textoBruto = string.gsub(textoBruto, "o+", "o")
@@ -315,459 +292,351 @@ if ultimo ~= "." and ultimo ~= "!" and ultimo ~= "?" then textoBruto = textoBrut
 return textoBruto
 end
 local function obterAlvoAimbotUniversal()
-local menorDistancia = math.huge
-local melhorAlvo = nil
-local meuChar = LocalPlayer.Character
-local meuHrp = meuChar and meuChar:FindFirstChild("HumanoidRootPart")
-if not meuHrp then return nil end
-for _, jogador in pairs(Players:GetPlayers()) do
-if jogador ~= LocalPlayer and jogador.Character and jogador.Character:FindFirstChildOfClass("Humanoid") then
-local charInimigo = jogador.Character
-local parteAlvo = charInimigo:FindFirstChild(ParteDoCorpoAlvo)
-if not parteAlvo and (ParteDoCorpoAlvo == "Torso" or ParteDoCorpoAlvo == "UpperTorso") then
-parteAlvo = charInimigo:FindFirstChild("HumanoidRootPart") or charInimigo:FindFirstChild("UpperTorso") or charInimigo:FindFirstChild("Torso")
+	local menorDistancia = math.huge
+	local melhorAlvo = nil
+	local meuChar = LocalPlayer.Character
+	local meuHrp = meuChar and meuChar:FindFirstChild("HumanoidRootPart")
+	if not meuHrp then return nil end
+	for _, jogador in pairs(Players:GetPlayers()) do
+		if jogador ~= LocalPlayer and jogador.Character and jogador.Character:FindFirstChildOfClass("Humanoid") then
+			local charInimigo = jogador.Character
+			local parteAlvo = charInimigo:FindFirstChild(ParteDoCorpoAlvo)
+			if not parteAlvo and (ParteDoCorpoAlvo == "Torso" or ParteDoCorpoAlvo == "UpperTorso") then
+				parteAlvo = charInimigo:FindFirstChild("HumanoidRootPart") or charInimigo:FindFirstChild("UpperTorso") or charInimigo:FindFirstChild("Torso")
+			end
+			if parteAlvo and parteAlvo:IsA("BasePart") then
+				local hum = charInimigo:FindFirstChildOfClass("Humanoid")
+				if hum.Health > 0 then
+					local _, visivel = Cam:WorldToViewportPoint(parteAlvo.Position)
+					if visivel then
+						local dist = (meuHrp.Position - parteAlvo.Position).Magnitude
+						if dist <= limiteAlcanceUniversal and dist < menorDistancia then
+							menorDistancia = dist melhorAlvo = parteAlvo
+						end
+					end
+				end
+			end
+		end
+	end
+	return melhorAlvo
 end
-if parteAlvo and parteAlvo:IsA("BasePart") then
-local hum = charInimigo:FindFirstChildOfClass("Humanoid")
-if hum.Health > 0 then
-local _, visivel = Cam:WorldToViewportPoint(parteAlvo.Position)
-if visivel then
-local dist = (meuHrp.Position - parteAlvo.Position).Magnitude
-if dist <= limiteAlcanceUniversal and dist < menorDistancia then
-menorDistancia = dist
-melhorAlvo = parteAlvo
-end
-end
-end
-end
-end
-end
-return melhorAlvo
-end
+
 local function obterCorDaFuncaoMM2(player)
-local char = player.Character
-if not char then return Color3.fromRGB(0, 255, 0) end
-for _, item in ipairs(char:GetChildren()) do
-if item:IsA("Tool") then
-local nome = item.Name:lower()
-if nome:find("knife") or nome:find("faca") then return Color3.fromRGB(255, 0, 0) end
-if nome:find("gun") or nome:find("arma") then return Color3.fromRGB(0, 0, 255) end
+	local char = player.Character
+	if not char then return Color3.fromRGB(0, 255, 0) end
+	for _, item in ipairs(char:GetChildren()) do
+		if item:IsA("Tool") then
+			local nome = item.Name:lower()
+			if nome:find("knife") or nome:find("faca") then return Color3.fromRGB(255, 0, 0) end
+			if nome:find("gun") or nome:find("arma") then return Color3.fromRGB(0, 0, 255) end
+		end
+	end
+	return Color3.fromRGB(0, 255, 0)
 end
-end
-return Color3.fromRGB(0, 255, 0)
-end
--- ========================================
--- FORSAKEN MATH ENGINE OPERATIONS
--- ========================================
+
 local function flattenVectorAgainstWall(moveVector, normal)
-if moveVector.Magnitude == 0 and normal.Magnitude == 0 then return Vector3.zero end
-normal = normal.Unit
-local reflected = moveVector - 2 * moveVector:Dot(normal) * normal
-local parallel = moveVector + reflected
-if parallel.Magnitude == 0 then return Vector3.zero end
-return parallel.Unit:Dot(moveVector.Unit) * parallel.Unit * moveVector.Magnitude
+	if moveVector.Magnitude == 0 and normal.Magnitude == 0 then return Vector3.zero end
+	normal = normal.Unit
+	local reflected = moveVector - 2 * moveVector:Dot(normal) * normal
+	local parallel = moveVector + reflected
+	if parallel.Magnitude == 0 then return Vector3.zero end
+	return parallel.Unit:Dot(moveVector.Unit) * parallel.Unit * moveVector.Magnitude
 end
-local function forsakenCollideAndSlide(wishedSpeed)
-if wishedSpeed.Magnitude == 0 then return wishedSpeed end
-local inputVec = ForsakenMovement.states.input_vec
-local newSpeed = wishedSpeed
-local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-if not hrp then return wishedSpeed end
-local params = RaycastParams.new()
-params.FilterDescendantsInstances = {LocalPlayer.Character, Cam}
-params.FilterType = Enum.RaycastFilterType.Exclude
-params.CollisionGroup = "PlayerMovement"
-wishedSpeed *= 2
-local dirAmnt = 1.375
-local mainDirAmnt = 1.55
-local isSticking = false
-local partsAlreadyHit = {}
-local lookVecs = { Vector3.new(0, (-ForsakenConfig.TORSO_TO_FEET) + ForsakenConfig.STEP_OFFSET, 0), Vector3.new(0, 0, 0), Vector3.new(0, 2, 0) }
-for _, v in pairs(lookVecs) do
-local values = {}
-local hval = {}
-local currForDir, currSideDir
-local rayPos = hrp.Position + v
-if inputVec.X > 0 then
-currForDir = hrp.CFrame.RightVector table.insert(values, currForDir)
-table.insert(hval, hrp.CFrame.LookVector * dirAmnt) table.insert(hval, -hrp.CFrame.LookVector * dirAmnt)
-elseif inputVec.X < 0 then
-currForDir = -hrp.CFrame.RightVector table.insert(values, currForDir)
-table.insert(hval, hrp.CFrame.LookVector * dirAmnt) table.insert(hval, -hrp.CFrame.LookVector * dirAmnt)
+
+local function baconCollideAndSlide(wishedSpeed)
+	if wishedSpeed.Magnitude == 0 then return wishedSpeed end
+	local inputVec = BaconBhopMovement.states.input_vec
+	local newSpeed = wishedSpeed
+	local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return wishedSpeed end
+	
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = {LocalPlayer.Character, Cam}
+	params.FilterType = Enum.RaycastFilterType.Exclude
+    params.CollisionGroup = "PlayerMovement"
+
+	wishedSpeed *= 2
+	local dirAmnt = 1.375
+	local mainDirAmnt = 1.55
+	local isSticking = false
+	local partsAlreadyHit = {}
+	local lookVecs = { Vector3.new(0, (-BaconBhopConfig.TORSO_TO_FEET) + BaconBhopConfig.STEP_OFFSET, 0), Vector3.new(0, 0, 0), Vector3.new(0, 2, 0) }
+
+	for _, v in pairs(lookVecs) do
+		local values = {}
+		local hval = {}
+		local currForDir, currSideDir
+		local rayPos = hrp.Position + v
+
+		if inputVec.X > 0 then
+			currForDir = hrp.CFrame.RightVector table.insert(values, currForDir)
+			table.insert(hval, hrp.CFrame.LookVector * dirAmnt) table.insert(hval, -hrp.CFrame.LookVector * dirAmnt)
+		elseif inputVec.X < 0 then
+			currForDir = -hrp.CFrame.RightVector table.insert(values, currForDir)
+			table.insert(hval, hrp.CFrame.LookVector * dirAmnt) table.insert(hval, -hrp.CFrame.LookVector * dirAmnt)
+		end
+
+		if inputVec.Z > 0 then
+			currSideDir = -hrp.CFrame.LookVector table.insert(values, currSideDir)
+			table.insert(hval, hrp.CFrame.RightVector * dirAmnt) table.insert(hval, -hrp.CFrame.RightVector * dirAmnt)
+		elseif inputVec.Z < 0 then
+			currSideDir = hrp.CFrame.LookVector table.insert(values, currSideDir)
+			table.insert(hval, hrp.CFrame.RightVector * dirAmnt) table.insert(hval, -hrp.CFrame.RightVector * dirAmnt)
+		end
+
+		if inputVec.Z == 0 and inputVec.X == 0 then
+			values = wishedSpeed.Unit
+			table.insert(hval, CFrame.new(wishedSpeed.Unit).RightVector * dirAmnt) table.insert(hval, -CFrame.new(wishedSpeed.Unit).RightVector * dirAmnt)
+		else
+			table.insert(values, wishedSpeed.Unit * dirAmnt)
+		end
+
+		if currForDir and currSideDir then
+			for a, b in pairs(values) do values[a] = b * mainDirAmnt end
+			table.insert(values, (currForDir+currSideDir) * mainDirAmnt)
+		else
+			values *= mainDirAmnt
+			table.insert(values, (values + hval).Unit * mainDirAmnt)
+			table.insert(values, (values + hval).Unit * mainDirAmnt)
+			table.insert(values, hval) table.insert(values, hval)
+		end
+
+		for _, b in pairs(values) do
+			if not b then continue end
+			local result = workspace:Raycast(rayPos, b, params)
+			if not result then continue end
+			if table.find(partsAlreadyHit, result.Instance) then continue end
+			table.insert(partsAlreadyHit, result.Instance)
+
+			local _v =  newSpeed.Unit * result.Normal
+			for _, c in pairs({_v.X, _v.Y, _v.Z}) do if math.abs(c) > 0 then _v = c break end end
+			if type(_v) == "number" and _v > 0 then continue end
+
+			isSticking = true
+			newSpeed = flattenVectorAgainstWall(newSpeed, result.Normal)
+			newSpeed -= result.Instance.Velocity
+			if BaconBhopMovement.mover then BaconBhopMovement.mover.PlaneVelocity = Vector2.new(newSpeed.X, newSpeed.Z) end
+		end
+	end
+	return newSpeed
 end
-if inputVec.Z > 0 then
-currSideDir = -hrp.CFrame.LookVector table.insert(values, currSideDir)
-table.insert(hval, hrp.CFrame.RightVector * dirAmnt) table.insert(hval, -hrp.CFrame.RightVector * dirAmnt)
-elseif inputVec.Z < 0 then
-currSideDir = hrp.CFrame.LookVector table.insert(values, currSideDir)
-table.insert(hval, hrp.CFrame.RightVector * dirAmnt) table.insert(hval, -hrp.CFrame.RightVector * dirAmnt)
+
+local function baconIsGrounded(dir)
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = {LocalPlayer.Character, Cam}
+	params.FilterType = Enum.RaycastFilterType.Exclude
+    params.CollisionGroup = "PlayerMovement"
+
+	local hrp = BaconBhopMovement.collider
+	if not hrp then return false end
+	local cf = CFrame.new(hrp.Position) - Vector3.new(0, hrp.Size.Y/2, 0)
+	dir = dir or Vector3.new(0, -1 * hrp.Size.Y - BaconBhopConfig.FOOT_OFFSET_AMOUNT, 0)
+
+	local result = workspace:Blockcast(cf, BaconBhopConfig.FEET_HB_SIZE, dir, params)
+	if not result or not result.Normal then return false end
+
+	local steepness = math.deg(math.acos(result.Normal:Dot(Vector3.yAxis)))
+	if type(steepness) ~= "number" or steepness ~= steepness then return false end
+
+	local isSurfing = steepness >= BaconBhopConfig.MIN_SLOPE_ANGLE and steepness <= BaconBhopConfig.MAX_SLOPE_ANGLE
+	if isSurfing then return false, true, result, steepness end
+	return true, false, result
 end
-if inputVec.Z == 0 and inputVec.X == 0 then
-values = wishedSpeed.Unit
-table.insert(hval, CFrame.new(wishedSpeed.Unit).RightVector * dirAmnt) table.insert(hval, -CFrame.new(wishedSpeed.Unit).RightVector * dirAmnt)
-else
-table.insert(values, wishedSpeed.Unit * dirAmnt)
+
+local function baconGetMovementDirection(groundNormal)
+	local forward = BaconBhopMovement.Keys.W + -BaconBhopMovement.Keys.S
+	local side = BaconBhopMovement.Keys.A + -BaconBhopMovement.Keys.D
+	groundNormal = groundNormal or Vector3.new(0,1,0)
+
+	if forward == 0 and side == 0 then
+		BaconBhopMovement.states.input_vec = Vector3.zero return Vector3.zero
+	else
+		BaconBhopMovement.states.input_vec = Vector3.new(-side, 0, -forward).Unit
+		local forwardMove = groundNormal:Cross(BaconBhopMovement.collider.CFrame.RightVector)
+		local sideMove = groundNormal:Cross(forwardMove)
+		return (forwardMove * forward + sideMove * side).Unit
+	end
 end
-if currForDir and currSideDir then
-for a, b in pairs(values) do values[a] = b * mainDirAmnt end
-table.insert(values, (currForDir+currSideDir) * mainDirAmnt)
-else
-values *= mainDirAmnt
-table.insert(values, (values + hval).Unit * mainDirAmnt)
-table.insert(values, (values + hval).Unit * mainDirAmnt)
-table.insert(values, hval) table.insert(values, hval)
+
+local function baconClipVelocity(input, normal, output, overbounce)
+	local angle = normal.Y
+	local blocked = 0
+	if angle > 0 then blocked = 1 end
+	if angle == 0 then blocked = 2 end
+	local backoff = input:Dot(normal) * overbounce
+
+	local coords = {"X", "Y", "Z"}
+	for i = 1, 3 do local ci = coords[i] output[ci] = input[ci] - (normal[ci] * backoff) end
+	local adjust = output:ToVector3():Dot(normal)
+	if adjust < 0 then output = output:ToVector3() - (normal * adjust) end
+	return blocked
 end
-for _, b in pairs(values) do
-if not b then continue end
-local result = workspace:Raycast(rayPos, b, params)
-if not result then continue end
-if table.find(partsAlreadyHit, result.Instance) then continue end
-table.insert(partsAlreadyHit, result.Instance)
-local _v =  newSpeed.Unit * result.Normal
-for _, c in pairs({_v.X, _v.Y, _v.Z}) do if math.abs(c) > 0 then _v = c break end end
-if type(_v) == "number" and _v > 0 then continue end
-isSticking = true
-newSpeed = flattenVectorAgainstWall(newSpeed, result.Normal)
-newSpeed -= result.Instance.Velocity
-if ForsakenMovement.mover then ForsakenMovement.mover.PlaneVelocity = Vector2.new(newSpeed.X, newSpeed.Z) end
+
+local function baconTraceReflect(velocity, origin)
+	local endp = origin + (velocity * BaconBhopMovement.dt)
+	local isGrounded, isSurfing, hit = baconIsGrounded(velocity.Unit * ((origin - endp).Magnitude + 0.1))
+	if hit then
+		local output = Vec3Mod.new(velocity)
+		baconClipVelocity(velocity, hit.Normal, output, 1) return output:ToVector3(), 1
+	end
+	return velocity, 0
 end
+
+local function baconApplyFriction(modifier, inAir)
+	local vel = inAir and BaconBhopMovement.collider.Velocity or Vector3.new(BaconBhopMovement.mover.PlaneVelocity.X, 0, BaconBhopMovement.mover.PlaneVelocity.Y)
+	local speed = vel.Magnitude
+	modifier = modifier or 1
+	if speed <= 0 then return vel end
+
+	if not inAir and BaconBhopMovement.states.input_vec.Magnitude > 0 and speed > 30 then return vel end
+	if not inAir and BaconBhopMovement.states.input_vec.Magnitude == 0 and modifier == 1 then modifier = 8 end
+
+	local fric = inAir and BaconBhopConfig.AIR_FRICTION or BaconBhopConfig.FRICTION
+	local control = speed < BaconBhopConfig.GROUND_DECCEL and BaconBhopConfig.GROUND_DECCEL or speed
+	local drop = control * fric * BaconBhopMovement.dt * modifier
+	if type(drop) ~= "number" then drop = drop.Magnitude end
+
+	local newSpeed = math.max(speed - drop, 0)
+	if not inAir and BaconBhopMovement.states.input_vec.Magnitude > 0 then newSpeed = math.max(newSpeed, 30) end
+	if speed > 0 and newSpeed > 0 then newSpeed /= speed end
+	vel *= newSpeed
+	BaconBhopMovement.mover.PlaneVelocity = Vector2.new(vel.X, vel.Z)
 end
-return newSpeed
+
+local function baconApplyGroundVelocity(groundNormal)
+	local wishDir = baconGetMovementDirection(groundNormal)
+	local wishSpeed = wishDir.Magnitude * BaconBhopConfig.RUN_SPEED
+	local currentGroundSpeed = Vector3.new(BaconBhopMovement.mover.PlaneVelocity.X, 0, BaconBhopMovement.mover.PlaneVelocity.Y).Magnitude
+
+	if BaconBhopMovement.states.air_friction > 0 and currentGroundSpeed < 5 and wishDir.Magnitude == 0 then
+		BaconBhopMovement.states.air_friction = 0
+	end
+	if BaconBhopMovement.states.air_friction <= 0 then baconApplyFriction(1, false)
+	else
+		local sub = BaconBhopConfig.AIR_MAX_SPEED_FRIC_DEC * BaconBhopMovement.dt * 60
+		local curr = BaconBhopMovement.states.air_friction
+		local fric = curr - sub
+		baconApplyFriction(math.max(1, fric/BaconBhopConfig.FRICTION), false)
+		BaconBhopMovement.states.air_friction = math.max(0, curr - sub)
+	end
+
+	local currentVelocity = Vector3.new(BaconBhopMovement.mover.PlaneVelocity.X, 0, BaconBhopMovement.mover.PlaneVelocity.Y)
+    local currentSpeed = currentVelocity:Dot(wishDir)
+local addSpeed = wishSpeed - currentSpeed
+if addSpeed > 0 then
+local accelerationSpeed = math.min(BaconBhopConfig.GROUND_ACCEL * BaconBhopMovement.dt * wishSpeed, addSpeed)
+local newVelocity = currentVelocity + (accelerationSpeed * wishDir)
+BaconBhopMovement.mover.PlaneVelocity = Vector2.new(newVelocity.X, newVelocity.Z)
 end
-local function forsakenIsGrounded(dir)
-local params = RaycastParams.new()
-params.FilterDescendantsInstances = {LocalPlayer.Character, Cam}
-params.FilterType = Enum.RaycastFilterType.Exclude
-params.CollisionGroup = "PlayerMovement"
-local hrp = ForsakenMovement.collider
-if not hrp then return false end
-local cf = CFrame.new(hrp.Position) - Vector3.new(0, hrp.Size.Y/2, 0)
-dir = dir or Vector3.new(0, -1 * hrp.Size.Y - ForsakenConfig.FOOT_OFFSET_AMOUNT, 0)
-local result = workspace:Blockcast(cf, ForsakenConfig.FEET_HB_SIZE, dir, params)
-if not result or not result.Normal then return false end
-local steepness = math.deg(math.acos(result.Normal:Dot(Vector3.yAxis)))
-if type(steepness) ~= "number" or steepness ~= steepness then return false end
-local isSurfing = steepness >= ForsakenConfig.MIN_SLOPE_ANGLE and steepness <= ForsakenConfig.MAX_SLOPE_ANGLE
-if isSurfing then return false, true, result, steepness end
-return true, false, result
+baconCollideAndSlide(Vector3.new(BaconBhopMovement.mover.PlaneVelocity.X, 0, BaconBhopMovement.mover.PlaneVelocity.Y))
 end
-local function forsakenGetMovementDirection(groundNormal)
-local forward = ForsakenMovement.Keys.W + -ForsakenMovement.Keys.S
-local side = ForsakenMovement.Keys.A + -ForsakenMovement.Keys.D
-groundNormal = groundNormal or Vector3.new(0,1,0)
-if forward == 0 and side == 0 then
-ForsakenMovement.states.input_vec = Vector3.zero
-return Vector3.zero
-else
-ForsakenMovement.states.input_vec = Vector3.new(-side, 0, -forward).Unit
-local forwardMove = groundNormal:Cross(ForsakenMovement.collider.CFrame.RightVector)
-local sideMove = groundNormal:Cross(forwardMove)
-return (forwardMove * forward + sideMove * side).Unit
-end
-end
-local function forsakenClipVelocity(input, normal, output, overbounce)
-local angle = normal.Y
-local blocked = 0
-if angle > 0 then blocked = 1 end
-if angle == 0 then blocked = 2 end
-local backoff = input:Dot(normal) * overbounce
-local coords = {"X", "Y", "Z"}
-for i = 1, 3 do
-local ci = coords[i]
-output[ci] = input[ci] - (normal[ci] * backoff)
-end
-local adjust = output:ToVector3():Dot(normal)
-if adjust < 0 then output = output:ToVector3() - (normal * adjust) end
-return blocked
-end
-local function forsakenTraceReflect(velocity, origin)
-local endp = origin + (velocity * ForsakenMovement.dt)
-local isGrounded, isSurfing, hit = forsakenIsGrounded(velocity.Unit * ((origin - endp).Magnitude + 0.1))
-if hit then
-local output = Vec3Mod.new(velocity)
-forsakenClipVelocity(velocity, hit.Normal, output, 1)
-return output:ToVector3(), 1
-end
-return velocity, 0
-end
-local function forsakenApplyFriction(modifier, inAir)
-local vel = inAir and ForsakenMovement.collider.Velocity or Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y)
-local speed = vel.Magnitude
-modifier = modifier or 1
-if speed <= 0 then return vel end
-if not inAir and ForsakenMovement.states.input_vec.Magnitude > 0 and speed > 30 then return vel end
-if not inAir and ForsakenMovement.states.input_vec.Magnitude == 0 and modifier == 1 then modifier = 8 end
-local fric = inAir and ForsakenConfig.AIR_FRICTION or ForsakenConfig.FRICTION
-local control = speed < ForsakenConfig.GROUND_DECCEL and ForsakenConfig.GROUND_DECCEL or speed
-local drop = control * fric * ForsakenMovement.dt * modifier
-if type(drop) ~= "number" then drop = drop.Magnitude end
-local newSpeed = math.max(speed - drop, 0)
-if not inAir and ForsakenMovement.states.input_vec.Magnitude > 0 then newSpeed = math.max(newSpeed, 30) end
-if speed > 0 and newSpeed > 0 then newSpeed /= speed end
-vel *= newSpeed
-ForsakenMovement.mover.PlaneVelocity = Vector2.new(vel.X, vel.Z)
-end
-local function forsakenApplyGroundVelocity(groundNormal)
-local wishDir = forsakenGetMovementDirection(groundNormal)
-local wishSpeed = wishDir.Magnitude * ForsakenConfig.RUN_SPEED
-local currentGroundSpeed = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y).Magnitude
-if ForsakenMovement.states.air_friction > 0 and currentGroundSpeed < 5 and wishDir.Magnitude == 0 then
-ForsakenMovement.states.air_friction = 0
-end
-if ForsakenMovement.states.air_friction <= 0 then
-forsakenApplyFriction(1, false)
-else
-local sub = ForsakenConfig.AIR_MAX_SPEED_FRIC_DEC * ForsakenMovement.dt * 60
-local curr = ForsakenMovement.states.air_friction
-local fric = curr - sub
-forsakenApplyFriction(math.max(1, fric/ForsakenConfig.FRICTION), false)
-ForsakenMovement.states.air_friction = math.max(0, curr - sub)
-end
-local currentVelocity = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y)
+local function baconApplyAirVelocity()
+local vel = Vector3.new(BaconBhopMovement.mover.PlaneVelocity.X, 0, BaconBhopMovement.mover.PlaneVelocity.Y)
+local wishDir = baconGetMovementDirection(Vector3.new(0,1,0))
+local wishSpeed = wishDir.Magnitude * BaconBhopConfig.AIR_SPEED
+if vel.Magnitude > BaconBhopConfig.AIR_MAX_SPEED then BaconBhopMovement.states.air_friction = BaconBhopConfig.AIR_MAX_SPEED_FRIC end
+if BaconBhopMovement.states.air_friction > 0 and not BaconBhopMovement.states.surfing then baconApplyFriction(0.01 * BaconBhopMovement.states.air_friction, false) end
+local currentVelocity = Vector3.new(BaconBhopMovement.mover.PlaneVelocity.X, 0, BaconBhopMovement.mover.PlaneVelocity.Y)
 local currentSpeed = currentVelocity:Dot(wishDir)
 local addSpeed = wishSpeed - currentSpeed
 if addSpeed > 0 then
-local accelerationSpeed = math.min(ForsakenConfig.GROUND_ACCEL * ForsakenMovement.dt * wishSpeed, addSpeed)
+local accelerationSpeed = math.min(BaconBhopConfig.AIR_ACCEL * BaconBhopMovement.dt * wishSpeed, addSpeed)
 local newVelocity = currentVelocity + (accelerationSpeed * wishDir)
-ForsakenMovement.mover.PlaneVelocity = Vector2.new(newVelocity.X, newVelocity.Z)
+BaconBhopMovement.mover.PlaneVelocity = Vector2.new(newVelocity.X, newVelocity.Z)
 end
-forsakenCollideAndSlide(Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y))
+local refVel = Vector3.new(BaconBhopMovement.mover.PlaneVelocity.X, BaconBhopMovement.collider.Velocity.Y, BaconBhopMovement.mover.PlaneVelocity.Y)
+local reflected = baconTraceReflect(refVel, BaconBhopMovement.collider.Position)
+BaconBhopMovement.mover.PlaneVelocity = Vector2.new(reflected.X, reflected.Z)
 end
-local function forsakenApplyAirVelocity()
-local vel = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y)
-local wishDir = forsakenGetMovementDirection(Vector3.new(0,1,0))
-local wishSpeed = wishDir.Magnitude * ForsakenConfig.AIR_SPEED
-if vel.Magnitude > ForsakenConfig.AIR_MAX_SPEED then ForsakenMovement.states.air_friction = ForsakenConfig.AIR_MAX_SPEED_FRIC end
-if ForsakenMovement.states.air_friction > 0 and not ForsakenMovement.states.surfing then forsakenApplyFriction(0.01 * ForsakenMovement.states.air_friction, false) end
-local currentVelocity = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, 0, ForsakenMovement.mover.PlaneVelocity.Y)
-local currentSpeed = currentVelocity:Dot(wishDir)
-local addSpeed = wishSpeed - currentSpeed
-if addSpeed > 0 then
-local accelerationSpeed = math.min(ForsakenConfig.AIR_ACCEL * ForsakenMovement.dt * wishSpeed, addSpeed)
-local newVelocity = currentVelocity + (accelerationSpeed * wishDir)
-ForsakenMovement.mover.PlaneVelocity = Vector2.new(newVelocity.X, newVelocity.Z)
-end
-local refVel = Vector3.new(ForsakenMovement.mover.PlaneVelocity.X, ForsakenMovement.collider.Velocity.Y, ForsakenMovement.mover.PlaneVelocity.Y)
-local reflected = forsakenTraceReflect(refVel, ForsakenMovement.collider.Position)
-ForsakenMovement.mover.PlaneVelocity = Vector2.new(reflected.X, reflected.Z)
-end
-local function initForsakenEngine()
-ForsakenMovement.collider = LocalPlayer.Character:WaitForChild("HumanoidRootPart")
-local mover = ForsakenMovement.collider:FindFirstChild("ForsakenMoverAttachment")
+local function initBaconEngine()
+BaconBhopMovement.collider = LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+local mover = BaconBhopMovement.collider:FindFirstChild("BaconMoverAttachment")
 if not mover then
-local a0 = Instance.new("Attachment", ForsakenMovement.collider)
-a0.Name = "ForsakenMoverAttachment"
-local lm = Instance.new("LinearVelocity", ForsakenMovement.collider)
-lm.Name = "ForsakenLinearMover"
-lm.Attachment0 = a0
-lm.MaxForce = 10000000
+local a0 = Instance.new("Attachment", BaconBhopMovement.collider)
+a0.Name = "BaconMoverAttachment"
+local lm = Instance.new("LinearVelocity", BaconBhopMovement.collider)
+lm.Name = "BaconLinearMover" lm.Attachment0 = a0 lm.MaxForce = 10000000
 lm.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
-lm.PrimaryTangentAxis = Vector3.new(1,0,0)
-lm.SecondaryTangentAxis = Vector3.new(0,0,1)
-ForsakenMovement.mover = lm
+lm.PrimaryTangentAxis = Vector3.new(1,0,0) lm.SecondaryTangentAxis = Vector3.new(0,0,1)
+BaconBhopMovement.mover = lm
 else
-ForsakenMovement.mover = ForsakenMovement.collider:FindFirstChild("ForsakenLinearMover")
+BaconBhopMovement.mover = BaconBhopMovement.collider:FindFirstChild("BaconLinearMover")
 end
 end
 -- ========================================
--- GUI CREATION (BACON HUB VISUAL CONTRAST)
+-- SCREEN GUI BUILDER
 -- ========================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "BaconHub"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+screenGui.Name = "BaconHub" screenGui.ResetOnSpawn = false screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local mainFrame = Instance.new("ImageLabel")
-mainFrame.Size = UDim2.new(0, 550, 0, 350)
-mainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
-mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-mainFrame.BackgroundTransparency = 1
-mainFrame.Image = "rbxassetid://131134468217147"
-mainFrame.ScaleType = Enum.ScaleType.Crop
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Parent = screenGui
+mainFrame.Size = UDim2.new(0, 550, 0, 350) mainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) mainFrame.BackgroundTransparency = 1
+mainFrame.Image = "rbxassetid://131134468217147" mainFrame.ScaleType = Enum.ScaleType.Crop mainFrame.Active = true mainFrame.Draggable = true mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
-local topBar = Instance.new("Frame")
-topBar.Size = UDim2.new(1, 0, 0, 35)
-topBar.BackgroundTransparency = 1
-topBar.Parent = mainFrame
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -40, 1, 0)
-titleLabel.Position = UDim2.new(0, 12, 0, 0)
-titleLabel.Text = "Bacon Hub | Private Multi-Game Script"
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.TextSize = 13
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.BackgroundTransparency = 1
-titleLabel.Parent = topBar
-local sidebar = Instance.new("ScrollingFrame")
-sidebar.Size = UDim2.new(0, 140, 1, -35)
-sidebar.Position = UDim2.new(0, 0, 0, 35)
-sidebar.BackgroundTransparency = 1
-sidebar.ScrollBarThickness = 0
-sidebar.Parent = mainFrame
-local sidebarLayout = Instance.new("UIListLayout")
-sidebarLayout.Padding = UDim.new(0, 4)
-sidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
-sidebarLayout.Parent = sidebar
+local topBar = Instance.new("Frame") topBar.Size = UDim2.new(1, 0, 0, 35) topBar.BackgroundTransparency = 1 topBar.Parent = mainFrame
+local titleLabel = Instance.new("TextLabel") titleLabel.Size = UDim2.new(1, -40, 1, 0) titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.Text = "Bacon Hub | Private Multi-Game Script" titleLabel.Font = Enum.Font.GothamBold titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) titleLabel.TextSize = 13 titleLabel.TextXAlignment = Enum.TextXAlignment.Left titleLabel.BackgroundTransparency = 1 titleLabel.Parent = topBar
+local sidebar = Instance.new("ScrollingFrame") sidebar.Size = UDim2.new(0, 140, 1, -35) sidebar.Position = UDim2.new(0, 0, 0, 35) sidebar.BackgroundTransparency = 1 sidebar.ScrollBarThickness = 0 sidebar.Parent = mainFrame
+local sidebarLayout = Instance.new("UIListLayout") sidebarLayout.Padding = UDim.new(0, 4) sidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder sidebarLayout.Parent = sidebar
 Instance.new("UIPadding", sidebar).PaddingTop = UDim.new(0, 8)
-sidebarLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-sidebar.CanvasSize = UDim2.new(0, 0, 0, sidebarLayout.AbsoluteContentSize.Y + 20)
-end)
-local contentContainer = Instance.new("Frame")
-contentContainer.Size = UDim2.new(1, -140, 1, -35)
-contentContainer.Position = UDim2.new(0, 140, 0, 35)
-contentContainer.BackgroundTransparency = 1
-contentContainer.Parent = mainFrame
+sidebarLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() sidebar.CanvasSize = UDim2.new(0, 0, 0, sidebarLayout.AbsoluteContentSize.Y + 20) end)
+local contentContainer = Instance.new("Frame") contentContainer.Size = UDim2.new(1, -140, 1, -35) contentContainer.Position = UDim2.new(0, 140, 0, 35) contentContainer.BackgroundTransparency = 1 contentContainer.Parent = mainFrame
 local Pages = {}
 local function createPage(pageName)
-local scrollingFrame = Instance.new("ScrollingFrame")
-scrollingFrame.Size = UDim2.new(1, 0, 1, 0)
-scrollingFrame.BackgroundTransparency = 1
-scrollingFrame.ScrollBarThickness = 4
-scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
-scrollingFrame.Visible = false
-scrollingFrame.Parent = contentContainer
-local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 8)
-listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Parent = scrollingFrame
+local scrollingFrame = Instance.new("ScrollingFrame") scrollingFrame.Size = UDim2.new(1, 0, 1, 0) scrollingFrame.BackgroundTransparency = 1 scrollingFrame.ScrollBarThickness = 4 scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255) scrollingFrame.Visible = false scrollingFrame.Parent = contentContainer
+local listLayout = Instance.new("UIListLayout") listLayout.Padding = UDim.new(0, 8) listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center listLayout.SortOrder = Enum.SortOrder.LayoutOrder listLayout.Parent = scrollingFrame
 Instance.new("UIPadding", scrollingFrame).PaddingTop = UDim.new(0, 10)
-listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
-end)
-Pages[pageName] = scrollingFrame
-return scrollingFrame
+listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20) end)
+Pages[pageName] = scrollingFrame return scrollingFrame
 end
 local firstTab = true
 local function createTab(name)
-local tabBtn = Instance.new("TextButton")
-tabBtn.Size = UDim2.new(0.9, 0, 0, 32)
-tabBtn.BackgroundTransparency = 0.5
-tabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-tabBtn.Font = Enum.Font.GothamMedium
-tabBtn.Text = name
-tabBtn.TextSize = 12
-tabBtn.TextColor3 = firstTab and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-tabBtn.Parent = sidebar
+local tabBtn = Instance.new("TextButton") tabBtn.Size = UDim2.new(0.9, 0, 0, 32) tabBtn.BackgroundTransparency = 0.5 tabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30) tabBtn.Font = Enum.Font.GothamMedium tabBtn.Text = name tabBtn.TextSize = 12 tabBtn.TextColor3 = firstTab and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200) tabBtn.Parent = sidebar
 Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
-local page = createPage(name)
-if firstTab then page.Visible = true firstTab = false end
+local page = createPage(name) if firstTab then page.Visible = true firstTab = false end
 tabBtn.MouseButton1Click:Connect(function()
 for _, p in pairs(Pages) do p.Visible = false end
 for _, b in ipairs(sidebar:GetChildren()) do if b:IsA("TextButton") then b.TextColor3 = Color3.fromRGB(200, 200, 200) end end
-page.Visible = true
-tabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+page.Visible = true tabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 end)
 return page
 end
 local function createSection(parentPage, sectionTitle)
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(0.92, 0, 0, 25)
-label.BackgroundTransparency = 1
-label.Text = sectionTitle
-label.Font = Enum.Font.GothamBold
-label.TextColor3 = Color3.fromRGB(255, 255, 255)
-label.TextSize = 13
-label.TextXAlignment = Enum.TextXAlignment.Left
-label.Parent = parentPage
+local label = Instance.new("TextLabel") label.Size = UDim2.new(0.92, 0, 0, 25) label.BackgroundTransparency = 1 label.Text = sectionTitle label.Font = Enum.Font.GothamBold label.TextColor3 = Color3.fromRGB(255, 255, 255) label.TextSize = 13 label.TextXAlignment = Enum.TextXAlignment.Left label.Parent = parentPage
 end
 local function createToggle(parentPage, text, defaultState, callback)
 local state = defaultState
-local toggleFrame = Instance.new("Frame")
-toggleFrame.Size = UDim2.new(0.92, 0, 0, 40)
-toggleFrame.BackgroundTransparency = 0.5
-toggleFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-toggleFrame.Parent = parentPage
+local toggleFrame = Instance.new("Frame") toggleFrame.Size = UDim2.new(0.92, 0, 0, 40) toggleFrame.BackgroundTransparency = 0.5 toggleFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) toggleFrame.Parent = parentPage
 Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 6)
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(0.7, 0, 1, 0)
-label.Position = UDim2.new(0, 12, 0, 0)
-label.BackgroundTransparency = 1
-label.Text = text
-label.Font = Enum.Font.GothamMedium
-label.TextColor3 = Color3.fromRGB(255, 255, 255)
-label.TextSize = 12
-label.TextXAlignment = Enum.TextXAlignment.Left
-label.Parent = toggleFrame
-local switch = Instance.new("TextButton")
-switch.Size = UDim2.new(0, 38, 0, 20)
-switch.Position = UDim2.new(1, -50, 0.5, -10)
-switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(100, 100, 100)
-switch.Text = ""
-switch.Parent = toggleFrame
+local label = Instance.new("TextLabel") label.Size = UDim2.new(0.7, 0, 1, 0) label.Position = UDim2.new(0, 12, 0, 0) label.BackgroundTransparency = 1 label.Text = text label.Font = Enum.Font.GothamMedium label.TextColor3 = Color3.fromRGB(255, 255, 255) label.TextSize = 12 label.TextXAlignment = Enum.TextXAlignment.Left label.Parent = toggleFrame
+local switch = Instance.new("TextButton") switch.Size = UDim2.new(0, 38, 0, 20) switch.Position = UDim2.new(1, -50, 0.5, -10) switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(100, 100, 100) switch.Text = "" switch.Parent = toggleFrame
 Instance.new("UICorner", switch).CornerRadius = UDim.new(0, 10)
-local circle = Instance.new("Frame")
-circle.Size = UDim2.new(0, 16, 0, 16)
-circle.Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-circle.Parent = switch
+local circle = Instance.new("Frame") circle.Size = UDim2.new(0, 16, 0, 16) circle.Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8) circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255) circle.Parent = switch
 Instance.new("UICorner", circle).CornerRadius = UDim.new(0, 8)
 switch.MouseButton1Click:Connect(function()
-state = not state
-switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(100, 100, 100)
-circle:TweenPosition(state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8), "Out", "Quart", 0.2, true)
-callback(state)
+state = not state switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(100, 100, 100)
+circle:TweenPosition(state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8), "Out", "Quart", 0.2, true) callback(state)
 end)
 return switch
 end
 local function createTextBox(parentPage, placeholder, defaultText, callback)
-local boxFrame = Instance.new("Frame")
-boxFrame.Size = UDim2.new(0.92, 0, 0, 40)
-boxFrame.BackgroundTransparency = 0.5
-boxFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-boxFrame.Parent = parentPage
+local boxFrame = Instance.new("Frame") boxFrame.Size = UDim2.new(0.92, 0, 0, 40) boxFrame.BackgroundTransparency = 0.5 boxFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) boxFrame.Parent = parentPage
 Instance.new("UICorner", boxFrame).CornerRadius = UDim.new(0, 6)
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(0.5, 0, 1, 0)
-label.Position = UDim2.new(0, 12, 0, 0)
-label.BackgroundTransparency = 1
-label.Text = placeholder
-label.Font = Enum.Font.GothamMedium
-label.TextColor3 = Color3.fromRGB(255, 255, 255)
-label.TextSize = 12
-label.TextXAlignment = Enum.TextXAlignment.Left
-label.Parent = boxFrame
-local box = Instance.new("TextBox")
-box.Size = UDim2.new(0, 100, 0, 26)
-box.Position = UDim2.new(1, -112, 0.5, -13)
-box.BackgroundTransparency = 0.3
-box.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-box.Text = defaultText
-box.Font = Enum.Font.GothamMedium
-box.TextColor3 = Color3.fromRGB(0, 255, 0)
-box.TextSize = 12
-box.Parent = boxFrame
-Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
-box.FocusLost:Connect(function(enterPressed) callback(box.Text) end)
-return box
+local label = Instance.new("TextLabel") label.Size = UDim2.new(0.5, 0, 1, 0) label.Position = UDim2.new(0, 12, 0, 0) label.BackgroundTransparency = 1 label.Text = placeholder label.Font = Enum.Font.GothamMedium label.TextColor3 = Color3.fromRGB(255, 255, 255) label.TextSize = 12 label.TextXAlignment = Enum.TextXAlignment.Left label.Parent = boxFrame
+local box = Instance.new("TextBox") box.Size = UDim2.new(0, 100, 0, 26) box.Position = UDim2.new(1, -112, 0.5, -13) box.BackgroundTransparency = 0.3 box.BackgroundColor3 = Color3.fromRGB(0, 0, 0) box.Text = defaultText box.Font = Enum.Font.GothamMedium box.TextColor3 = Color3.fromRGB(0, 255, 0) box.TextSize = 12 box.Parent = boxFrame
+Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4) box.FocusLost:Connect(function(enterPressed) callback(box.Text) end) return box
 end
 local function createButton(parentPage, text, callback)
-local btnFrame = Instance.new("Frame")
-btnFrame.Size = UDim2.new(0.92, 0, 0, 40)
-btnFrame.BackgroundTransparency = 0.5
-btnFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-btnFrame.Parent = parentPage
+local btnFrame = Instance.new("Frame") btnFrame.Size = UDim2.new(0.92, 0, 0, 40) btnFrame.BackgroundTransparency = 0.5 btnFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) btnFrame.Parent = parentPage
 Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(0, 6)
-local btn = Instance.new("TextButton")
-btn.Size = UDim2.new(1, 0, 1, 0)
-btn.BackgroundTransparency = 1
-btn.Text = text
-btn.Font = Enum.Font.GothamMedium
-btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-btn.TextSize = 12
-btn.Parent = btnFrame
-btn.MouseButton1Click:Connect(callback)
-return btn
+local btn = Instance.new("TextButton") btn.Size = UDim2.new(1, 0, 1, 0) btn.BackgroundTransparency = 1 btn.Text = text btn.Font = Enum.Font.GothamMedium btn.TextColor3 = Color3.fromRGB(255, 255, 255) btn.TextSize = 12 btn.Parent = btnFrame
+btn.MouseButton1Click:Connect(callback) return btn
 end
 -- ========================================
--- INITIALIZING TABS & COMPONENTS
+-- CREATING TABS
 -- ========================================
 local mainPage = createTab("Main / Movement")
-local forsakenPage = createTab("Forsaken Bhop")
+local bhopPage = createTab("Bacon Bhop") -- ABA ATUALIZADA PARA BACON BHOP
 local combatPage = createTab("Combat / Hitbox")
 local universalAimbotPage = createTab("Universal Aimbot")
 local waypointPage = createTab("Waypoints")
@@ -779,168 +648,82 @@ local settingsPage = createTab("Configurações")
 local creditsPage = createTab("Credits")
 -- Main Page Content
 createSection(mainPage, "Movement Settings")
-createToggle(mainPage, "Enable Speed Hack", false, function(toggled)
-isSpeedBoostActive = toggled
-if not toggled then local hum = getHumanoid() if hum then hum.WalkSpeed = 16 end end
-end)
-createTextBox(mainPage, "Set Custom Speed Value", "100", function(text)
-local val = tonumber(text) if val then currentSpeed = val end
-end)
+createToggle(mainPage, "Enable Speed Hack", false, function(toggled) isSpeedBoostActive = toggled if not toggled then local hum = getHumanoid() if hum then hum.WalkSpeed = 16 end end end)
+createTextBox(mainPage, "Set Custom Speed Value", "100", function(text) local val = tonumber(text) if val then currentSpeed = val end end)
 createToggle(mainPage, "Infinite Jump", false, function(toggled) isInfiniteJumpActive = toggled end)
 createToggle(mainPage, "Noclip Mode", false, function(toggled) isNoclipActive = toggled end)
 createSection(mainPage, "Fly Engine")
-createToggle(mainPage, "Enable Fly", false, function(toggled)
-isFlyActive = toggled
-if not toggled then
-local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-if hrp then hrp.Velocity = Vector3.new(0, 0, 0) end
-end
-end)
-createTextBox(mainPage, "Set Fly Speed", "50", function(text)
-local val = tonumber(text) if val then currentFlySpeed = val end
-end)
+createToggle(mainPage, "Enable Fly", false, function(toggled) isFlyActive = toggled if not toggled then local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") if hrp then hrp.Velocity = Vector3.new(0, 0, 0) end end end)
+createTextBox(mainPage, "Set Fly Speed", "50", function(text) local val = tonumber(text) if val then currentFlySpeed = val end end)
 createSection(mainPage, "Vertical Transport Gadget")
-createToggle(mainPage, "Open Elevator Platform (6x6)", false, function(toggled)
-PlataformaAtivada = toggled
-local char = LocalPlayer.Character
-local hrp = char and char:FindFirstChild("HumanoidRootPart")
+createToggle(mainPage, "Open Elevator Platform (6x6)", false, function(toggled) PlataformaAtivada = toggled local char = LocalPlayer.Character local hrp = char and char:FindFirstChild("HumanoidRootPart") if toggled then if hrp then AlturaPlataforma = hrp.Position.Y - 3.5 PlataformaObjeto = Instance.new("Part") PlataformaObjeto.Size = Vector3.new(6, 0.5, 6) PlataformaObjeto.Position = Vector3.new(hrp.Position.X, AlturaPlataforma, hrp.Position.Z) PlataformaObjeto.Anchored = true PlataformaObjeto.Material = Enum.Material.Glass PlataformaObjeto.Transparency = 0.4 PlataformaObjeto.CanCollide = true PlataformaObjeto.Parent = workspace end else if PlataformaObjeto then PlataformaObjeto:Destroy() PlataformaObjeto = nil end end end)
+-- Bacon Bhop Tab Interface
+createSection(bhopPage, "Bacon Advanced Physics Engine")
+createToggle(bhopPage, "Enable Bacon Bhop Physics", false, function(toggled)
+isBaconBhopActive = toggled
 if toggled then
-if hrp then
-AlturaPlataforma = hrp.Position.Y - 3.5
-PlataformaObjeto = Instance.new("Part")
-PlataformaObjeto.Size = Vector3.new(6, 0.5, 6)
-PlataformaObjeto.Position = Vector3.new(hrp.Position.X, AlturaPlataforma, hrp.Position.Z)
-PlataformaObjeto.Anchored = true
-PlataformaObjeto.Material = Enum.Material.Glass
-PlataformaObjeto.Transparency = 0.4
-PlataformaObjeto.CanCollide = true
-PlataformaObjeto.Parent = workspace
-end
+initBaconEngine()
+if BaconBhopMovement.mover then BaconBhopMovement.mover.Enabled = true end
 else
-if PlataformaObjeto then PlataformaObjeto:Destroy() PlataformaObjeto = nil end
-end
-end)
--- Forsaken Category Interface
-createSection(forsakenPage, "Forsaken Advanced Physics Engine")
-createToggle(forsakenPage, "Enable Forsaken Physics", false, function(toggled)
-isForsakenBhopActive = toggled
-if toggled then
-initForsakenEngine()
-if ForsakenMovement.mover then ForsakenMovement.mover.Enabled = true end
-else
-if ForsakenMovement.mover then ForsakenMovement.mover.Enabled = false end
+if BaconBhopMovement.mover then BaconBhopMovement.mover.Enabled = false end
 local hum = getHumanoid() if hum then hum.PlatformStand = false end
 end
 end)
 -- Combat Page Content
 createSection(combatPage, "Player Modification")
-createToggle(combatPage, "Expand Enemy Hitboxes", false, function(toggled)
-isExpanded = toggled if not toggled then resetAllHitboxes() end
-end)
-createTextBox(combatPage, "Set Hitbox Size", "12", function(text)
-local num = tonumber(text) if num then currentHitboxSize = Vector3.new(num, num, num) end
-end)
-createTextBox(combatPage, "Hitbox RGB Color", "255, 0, 0", function(text)
-local r, g, b = text:match("(%d+)%s*,%s*(%d+)%s*,%s*(%d+)")
-if r and g and b then currentHitboxColor = Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b)) end
-end)
-createTextBox(combatPage, "Hitbox Material/Texture", "Plastic", function(text)
-local success, mat = pcall(function() return Enum.Material[text] end)
-if success and mat then currentHitboxMaterial = mat end
-end)
-createTextBox(combatPage, "Hitbox Transparency (0 to 1)", "0.6", function(text)
-local num = tonumber(text) if num then currentHitboxTransparency = math.clamp(num, 0, 1) end
-end)
+createToggle(combatPage, "Expand Enemy Hitboxes", false, function(toggled) isExpanded = toggled if not toggled then resetAllHitboxes() end end)
+createTextBox(combatPage, "Set Hitbox Size", "12", function(text) local num = tonumber(text) if num then currentHitboxSize = Vector3.new(num, num, num) end end)
+createTextBox(combatPage, "Hitbox RGB Color", "255, 0, 0", function(text) local r, g, b = text:match("(%d+)%s*,%s*(%d+)%s*,%s*(%d+)") if r and g and b then currentHitboxColor = Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b)) end end)
+createTextBox(combatPage, "Hitbox Material/Texture", "Plastic", function(text) local success, mat = pcall(function() return Enum.Material[text] end) if success and mat then currentHitboxMaterial = mat end end)
+createTextBox(combatPage, "Hitbox Transparency (0 to 1)", "0.6", function(text) local num = tonumber(text) if num then currentHitboxTransparency = math.clamp(num, 0, 1) end end)
 -- Universal Aimbot Page Content
 createSection(universalAimbotPage, "Global Targeting Engine")
-createToggle(universalAimbotPage, "Enable Universal Aimbot", false, function(toggled)
-MasterUniversalAimbot = toggled
-if not toggled then AimbotAtivoPorTecla = false AlvoAtualGrudado = nil end
-end)
-createTextBox(universalAimbotPage, "Target Part (Head/Torso/HumanoidRootPart)", "Head", function(text)
-if text ~= "" then ParteDoCorpoAlvo = text end
-end)
-createTextBox(universalAimbotPage, "Max Aim Distance (Studs)", "250", function(text)
-local num = tonumber(text) if num then limiteAlcanceUniversal = num end
-end)
+createToggle(universalAimbotPage, "Enable Universal Aimbot", false, function(toggled) MasterUniversalAimbot = toggled if not toggled then AimbotAtivoPorTecla = false AlvoAtualGrudado = nil end end)
+createTextBox(universalAimbotPage, "Target Part (Head/Torso/HumanoidRootPart)", "Head", function(text) if text ~= "" then ParteDoCorpoAlvo = text end end)
+createTextBox(universalAimbotPage, "Max Aim Distance (Studs)", "250", function(text) local num = tonumber(text) if num then limiteAlcanceUniversal = num end end)
 -- Waypoints Page Content
 createSection(waypointPage, "Position Storage Engine")
 createTextBox(waypointPage, "Waypoint Name Input", "Waypoint Novo", function(text) NomeNovoWaypoint = text end)
-local statusWaypointLabel = Instance.new("TextLabel")
-statusWaypointLabel.Size = UDim2.new(0.92, 0, 0, 30) statusWaypointLabel.BackgroundTransparency = 0.5 statusWaypointLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-statusWaypointLabel.Text = "SELECTED WAYPOINT: NONE" statusWaypointLabel.TextColor3 = Color3.fromRGB(255, 170, 0) statusWaypointLabel.Font = Enum.Font.GothamBold statusWaypointLabel.TextSize = 11 statusWaypointLabel.Parent = waypointPage
+local statusWaypointLabel = Instance.new("TextLabel") statusWaypointLabel.Size = UDim2.new(0.92, 0, 0, 30) statusWaypointLabel.BackgroundTransparency = 0.5 statusWaypointLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0) statusWaypointLabel.Text = "SELECTED WAYPOINT: NONE" statusWaypointLabel.TextColor3 = Color3.fromRGB(255, 170, 0) statusWaypointLabel.Font = Enum.Font.GothamBold statusWaypointLabel.TextSize = 11 statusWaypointLabel.Parent = waypointPage
 Instance.new("UICorner", statusWaypointLabel).CornerRadius = UDim.new(0, 6)
-local waypointListScroll = Instance.new("ScrollingFrame")
-waypointListScroll.Size = UDim2.new(0.92, 0, 0, 95) waypointListScroll.BackgroundTransparency = 0.5 waypointListScroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-waypointListScroll.ScrollBarThickness = 4 waypointListScroll.Parent = waypointPage
+local waypointListScroll = Instance.new("ScrollingFrame") waypointListScroll.Size = UDim2.new(0.92, 0, 0, 95) waypointListScroll.BackgroundTransparency = 0.5 waypointListScroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0) waypointListScroll.ScrollBarThickness = 4 waypointListScroll.Parent = waypointPage
 Instance.new("UICorner", waypointListScroll).CornerRadius = UDim.new(0, 6)
 local waypointListLayout = Instance.new("UIListLayout") waypointListLayout.Padding = UDim.new(0, 4) waypointListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center waypointListLayout.Parent = waypointListScroll
 local function atualizarListaWaypoints()
 for _, child in pairs(waypointListScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
 for nome, coord in pairs(ListaWaypoints) do
-local wBtn = Instance.new("TextButton") wBtn.Size = UDim2.new(0.95, 0, 0, 28) wBtn.BackgroundTransparency = 0.5 wBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-wBtn.Text = nome wBtn.Font = Enum.Font.Gotham wBtn.TextColor3 = Color3.fromRGB(255, 255, 255) wBtn.TextSize = 11 wBtn.Parent = waypointListScroll
+local wBtn = Instance.new("TextButton") wBtn.Size = UDim2.new(0.95, 0, 0, 28) wBtn.BackgroundTransparency = 0.5 wBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30) wBtn.Text = nome wBtn.Font = Enum.Font.Gotham wBtn.TextColor3 = Color3.fromRGB(255, 255, 255) wBtn.TextSize = 11 wBtn.Parent = waypointListScroll
 Instance.new("UICorner", wBtn).CornerRadius = UDim.new(0, 4)
-wBtn.MouseButton1Click:Connect(function()
-WaypointSelecionado = {Nome = nome, Posicao = coord}
-statusWaypointLabel.Text = "SELECTED WAYPOINT: " .. nome:upper()
-statusWaypointLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-end)
+wBtn.MouseButton1Click:Connect(function() WaypointSelecionado = {Nome = nome, Posicao = coord} statusWaypointLabel.Text = "SELECTED WAYPOINT: " .. nome:upper() statusWaypointLabel.TextColor3 = Color3.fromRGB(0, 255, 0) end)
 end
 end
 waypointListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() waypointListScroll.CanvasSize = UDim2.new(0, 0, 0, waypointListLayout.AbsoluteContentSize.Y + 10) end)
-createButton(waypointPage, "SAVE CURRENT POSITION", function()
-local char = LocalPlayer.Character
-local hrp = char and char:FindFirstChild("HumanoidRootPart")
-if hrp and NomeNovoWaypoint ~= "" then ListaWaypoints[NomeNovoWaypoint] = hrp.Position atualizarListaWaypoints() end
-end)
-createButton(waypointPage, "TELEPORT TO WAYPOINT", function()
-if WaypointSelecionado then
-local char = LocalPlayer.Character
-local hrp = char and char:FindFirstChild("HumanoidRootPart")
-if hrp then hrp.CFrame = CFrame.new(WaypointSelecionado.Posicao + Vector3.new(0, 3, 0)) end
-end
-end)
+createButton(waypointPage, "SAVE CURRENT POSITION", function() local char = LocalPlayer.Character local hrp = char and char:FindFirstChild("HumanoidRootPart") if hrp and NomeNovoWaypoint ~= "" then ListaWaypoints[NomeNovoWaypoint] = hrp.Position atualizarListaWaypoints() end end)
+createButton(waypointPage, "TELEPORT TO WAYPOINT", function() if WaypointSelecionado then local char = LocalPlayer.Character local hrp = char and char:FindFirstChild("HumanoidRootPart") if hrp then hrp.CFrame = CFrame.new(WaypointSelecionado.Posicao + Vector3.new(0, 3, 0)) end end end)
 createSection(waypointPage, "Player Teleport Engine")
-local statusPlayerTpLabel = Instance.new("TextLabel")
-statusPlayerTpLabel.Size = UDim2.new(0.92, 0, 0, 30) statusPlayerTpLabel.BackgroundTransparency = 0.5 statusPlayerTpLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-statusPlayerTpLabel.Text = "TARGET PLAYER: NONE" statusPlayerTpLabel.TextColor3 = Color3.fromRGB(255, 75, 75) statusPlayerTpLabel.Font = Enum.Font.GothamBold statusPlayerTpLabel.TextSize = 11 statusPlayerTpLabel.Parent = waypointPage
+local statusPlayerTpLabel = Instance.new("TextLabel") statusPlayerTpLabel.Size = UDim2.new(0.92, 0, 0, 30) statusPlayerTpLabel.BackgroundTransparency = 0.5 statusPlayerTpLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0) statusPlayerTpLabel.Text = "TARGET PLAYER: NONE" statusPlayerTpLabel.TextColor3 = Color3.fromRGB(255, 75, 75) statusPlayerTpLabel.Font = Enum.Font.GothamBold statusPlayerTpLabel.TextSize = 11 statusPlayerTpLabel.Parent = waypointPage
 Instance.new("UICorner", statusPlayerTpLabel).CornerRadius = UDim.new(0, 6)
-local playerTpListScroll = Instance.new("ScrollingFrame")
-playerTpListScroll.Size = UDim2.new(0.92, 0, 0, 95) playerTpListScroll.BackgroundTransparency = 0.5 playerTpListScroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-playerTpListScroll.ScrollBarThickness = 4 playerTpListScroll.Parent = waypointPage
+local playerTpListScroll = Instance.new("ScrollingFrame") playerTpListScroll.Size = UDim2.new(0.92, 0, 0, 95) playerTpListScroll.BackgroundTransparency = 0.5 playerTpListScroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0) playerTpListScroll.ScrollBarThickness = 4 playerTpListScroll.Parent = waypointPage
 Instance.new("UICorner", playerTpListScroll).CornerRadius = UDim.new(0, 6)
 local playerTpListLayout = Instance.new("UIListLayout") playerTpListLayout.Padding = UDim.new(0, 4) playerTpListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center playerTpListLayout.Parent = playerTpListScroll
 local function atualizarListaJogadoresTP()
 for _, child in pairs(playerTpListScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
 for _, player in pairs(Players:GetPlayers()) do
 if player ~= LocalPlayer then
-local pBtn = Instance.new("TextButton") pBtn.Size = UDim2.new(0.95, 0, 0, 28) pBtn.BackgroundTransparency = 0.5 pBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-pBtn.Text = player.Name pBtn.Font = Enum.Font.Gotham pBtn.TextColor3 = Color3.fromRGB(255, 255, 255) pBtn.TextSize = 11 pBtn.Parent = playerTpListScroll
+local pBtn = Instance.new("TextButton") pBtn.Size = UDim2.new(0.95, 0, 0, 28) pBtn.BackgroundTransparency = 0.5 pBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20) pBtn.Text = player.Name pBtn.Font = Enum.Font.Gotham pBtn.TextColor3 = Color3.fromRGB(255, 255, 255) pBtn.TextSize = 11 pBtn.Parent = playerTpListScroll
 Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 4)
-pBtn.MouseButton1Click:Connect(function()
-JogadorAlvoParaTP = player statusPlayerTpLabel.Text = "TARGET PLAYER: " .. player.Name:upper() statusPlayerTpLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-end)
+pBtn.MouseButton1Click:Connect(function() JogadorAlvoParaTP = player statusPlayerTpLabel.Text = "TARGET PLAYER: " .. player.Name:upper() statusPlayerTpLabel.TextColor3 = Color3.fromRGB(0, 255, 0) end)
 end
 end
 end
 playerTpListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() playerTpListScroll.CanvasSize = UDim2.new(0, 0, 0, playerTpListLayout.AbsoluteContentSize.Y + 10) end)
-createButton(waypointPage, "TELEPORT TO PLAYER", function()
-if JogadorAlvoParaTP and JogadorAlvoParaTP.Character then
-local targetHrp = JogadorAlvoParaTP.Character:FindFirstChild("HumanoidRootPart")
-local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-if hrp and targetHrp then hrp.CFrame = targetHrp.CFrame + Vector3.new(0, 3, 0) end
-end
-end)
-Connections.PlayerAddedTP = Players.PlayerAdded:Connect(atualizarListaJogadoresTP)
-Connections.PlayerRemovingTP = Players.PlayerRemoving:Connect(atualizarListaJogadoresTP)
-atualizarListaJogadoresTP()
--- MM2 Vision Page Content
+createButton(waypointPage, "TELEPORT TO PLAYER", function() if JogadorAlvoParaTP and JogadorAlvoParaTP.Character then local targetHrp = JogadorAlvoParaTP.Character:FindFirstChild("HumanoidRootPart") local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") if hrp and targetHrp then hrp.CFrame = targetHrp.CFrame + Vector3.new(0, 3, 0) end end end)
+Connections.PlayerAddedTP = Players.PlayerAdded:Connect(atualizarListaJogadoresTP) Connections.PlayerRemovingTP = Players.PlayerRemoving:Connect(atualizarListaJogadoresTP) atualizarListaJogadoresTP()
+-- MM2 Vision & Bots Page Content
 createSection(mm2Page, "Murder Mystery 2 Tracking")
 createToggle(mm2Page, "Enable Camera Aimbot Lock", false, function(toggled) MasterMM2Aimbot = toggled end)
 createToggle(mm2Page, "ESP Outline (Highlights)", false, function(toggled) HighlightsMM2Ativado = toggled gerenciarHighlightsMM2() end)
 createTextBox(mm2Page, "Max Distance (Studs)", "200", function(text) local num = tonumber(text) if num then limiteAlcanceMM2 = num end end)
--- Auto Play Page Content
 createSection(autoPlayPage, "MM2 Role Automation")
 createToggle(autoPlayPage, "AI Survivor Bot (Innocent/Sheriff)", false, function(toggled) AutoPlayInocenteAtivado = toggled if not toggled then resetAllHitboxes() end end)
 createToggle(autoPlayPage, "AI Murderer Bot (Hunting Engine)", false, function(toggled) AutoPlayMurderAtivado = toggled end)
@@ -960,29 +743,20 @@ Instance.new("UICorner", stealBtn).CornerRadius = UDim.new(0, 6)
 createButton(stealerPage, "SEND GLITCH COMMAND", function() enviarMensagemChat("/glitch 1") end)
 local playerListScroll = Instance.new("ScrollingFrame") playerListScroll.Size = UDim2.new(0.92, 0, 0, 110) playerListScroll.BackgroundTransparency = 0.5 playerListScroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0) playerListScroll.ScrollBarThickness = 4 playerListScroll.Parent = stealerPage
 Instance.new("UICorner", playerListScroll).CornerRadius = UDim.new(0, 6)
-local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 4)
-listLayout.SortOrder = Enum.SortOrder.Name
-listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-listLayout.Parent = playerListScroll
+local listLayout = Instance.new("UIListLayout") listLayout.Padding = UDim.new(0, 4) listLayout.SortOrder = Enum.SortOrder.Name bookkeeping = Enum.HorizontalAlignment.Center listLayout.Parent = playerListScroll
 listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() playerListScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10) end)
 local function updatePlayerList()
 for _, child in pairs(playerListScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
 for _, player in pairs(Players:GetPlayers()) do
 if player ~= LocalPlayer then
-local pBtn = Instance.new("TextButton") pBtn.Size = UDim2.new(0.95, 0, 0, 28) pBtn.BackgroundTransparency = 0.5 pBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-pBtn.Text = player.Name pBtn.TextColor3 = Color3.fromRGB(255, 255, 255) pBtn.Font = Enum.Font.Gotham pBtn.TextSize = 12 pBtn.Parent = playerListScroll
+local pBtn = Instance.new("TextButton") pBtn.Size = UDim2.new(0.95, 0, 0, 28) pBtn.BackgroundTransparency = 0.5 pBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30) pBtn.Text = player.Name pBtn.TextColor3 = Color3.fromRGB(255, 255, 255) pBtn.Font = Enum.Font.Gotham pBtn.TextSize = 12 pBtn.Parent = playerListScroll
 Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 4)
-pBtn.MouseButton1Click:Connect(function()
-JogadorSelecionado = player statusLabel.Text = "TARGET: " .. player.Name:upper() statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-end)
+pBtn.MouseButton1Click:Connect(function() JogadorSelecionado = player statusLabel.Text = "TARGET: " .. player.Name:upper() statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0) end)
 end
 end
 end
 stealBtn.MouseButton1Click:Connect(function() roubarSkinDoJogadorSelecionado() end)
-Connections.PlayerAddedSteal = Players.PlayerAdded:Connect(updatePlayerList)
-Connections.PlayerRemovingSteal = Players.PlayerRemoving:Connect(updatePlayerList)
-updatePlayerList()
+Connections.PlayerAddedSteal = Players.PlayerAdded:Connect(updatePlayerList) Connections.PlayerRemovingSteal = Players.PlayerRemoving:Connect(updatePlayerList) updatePlayerList()
 -- Settings Page Content
 createSection(settingsPage, "Key Bindings Configuration")
 createTextBox(settingsPage, "UI Toggle Key", "F1", function(text) local success, key = pcall(function() return Enum.KeyCode[text] end) if success and key then ToggleKey = key end end)
@@ -993,17 +767,7 @@ local freecamToggleSwitch = createToggle(settingsPage, "Enable Freecam (Alt + P)
 createTextBox(settingsPage, "Freecam Move Speed", "1.0", function(text) local val = tonumber(text) if val then VelocidadeFreecam = val end end)
 createSection(settingsPage, "Automation Tools")
 createToggle(settingsPage, "Enable Anti-AFK (Bypass Disconnect)", false, function(toggled) AntiAFKAtivado = toggled end)
-createToggle(settingsPage, "Enable AFK Safe Mode", false, function(toggled)
-local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-if toggled and hrp then
-PosicaoOriginal = hrp.CFrame
-AFKPlatform = Instance.new("Part") AFKPlatform.Size = Vector3.new(20, 2, 20) AFKPlatform.Position = Vector3.new(hrp.Position.X, 1500, hrp.Position.Z) AFKPlatform.Anchored = true AFKPlatform.Parent = workspace
-task.wait(0.1) hrp.CFrame = CFrame.new(AFKPlatform.Position + Vector3.new(0, 4, 0))
-elseif hrp and PosicaoOriginal then
-if AFKPlatform then AFKPlatform:Destroy() AFKPlatform = nil end
-hrp.CFrame = PosicaoOriginal PosicaoOriginal = nil
-end
-end)
+createToggle(settingsPage, "Enable AFK Safe Mode", false, function(toggled) local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") if toggled and hrp then PosicaoOriginal = hrp.CFrame AFKPlatform = Instance.new("Part") AFKPlatform.Size = Vector3.new(20, 2, 20) AFKPlatform.Position = Vector3.new(hrp.Position.X, 1500, hrp.Position.Z) AFKPlatform.Anchored = true AFKPlatform.Parent = workspace task.wait(0.1) hrp.CFrame = CFrame.new(AFKPlatform.Position + Vector3.new(0, 4, 0)) elseif hrp and PosicaoOriginal then if AFKPlatform then AFKPlatform:Destroy() AFKPlatform = nil end hrp.CFrame = PosicaoOriginal PosicaoOriginal = nil end end)
 -- Credits Page Content
 createSection(creditsPage, "Bacon Hub Official Team")
 local ownerLabel = Instance.new("TextLabel") ownerLabel.Size = UDim2.new(0.92, 0, 0, 30) ownerLabel.BackgroundTransparency = 1 ownerLabel.Text = "Hub Owner: Bacon aura" ownerLabel.Font = Enum.Font.GothamBold ownerLabel.TextColor3 = Color3.fromRGB(255, 255, 255) ownerLabel.Parent = creditsPage
@@ -1015,31 +779,29 @@ Connections.RenderStepped = RunService.RenderStepped:Connect(function(dt)
 local char = LocalPlayer.Character
 local hrp = char and char:FindFirstChild("HumanoidRootPart")
 local hum = char and char:FindFirstChildOfClass("Humanoid")
--- ENGINE FORSAKEN SUB-PROCESS LOOPS (Se ativo, gerencia a movimentacao)
-if isForsakenBhopActive and hum and hrp and ForsakenMovement.mover and not FreecamAtivada and not isFlyActive then
-ForsakenMovement.dt = dt
-local isGrounded, isSurfing, result = forsakenIsGrounded()
-ForsakenMovement.states.grounded = isGrounded or false
-ForsakenMovement.states.surfing = isSurfing or false
-if hrp.AssemblyLinearVelocity.Y < 0 then ForsakenMovement.states.jumping = false end
--- Sincroniza a rotação do boneco com a camera estilo FPS
+-- SISTEMA UNIFICADO DE LOOP DO BACON BHOP
+if isBaconBhopActive and hum and hrp and BaconBhopMovement.mover and not FreecamAtivada and not isFlyActive then
+BaconBhopMovement.dt = dt
+local isGrounded, isSurfing, result = baconIsGrounded()
+BaconBhopMovement.states.grounded = isGrounded or false
+BaconBhopMovement.states.surfing = isSurfing or false
+if hrp.AssemblyLinearVelocity.Y < 0 then BaconBhopMovement.states.jumping = false end
 local rotationLook = hrp.Position + Cam.CFrame.lookVector
 hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(rotationLook.X, hrp.Position.Y, rotationLook.Z))
 hrp.RotVelocity = Vector3.new()
-if ForsakenMovement.states.jumping or not ForsakenMovement.states.grounded then
+if BaconBhopMovement.states.jumping or not BaconBhopMovement.states.grounded then
 local groundNormal = isSurfing and result.Normal or false
-forsakenApplyAirVelocity()
-hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, hrp.AssemblyLinearVelocity.Y - (ForsakenConfig.GRAVITY * dt), hrp.AssemblyLinearVelocity.Z)
-elseif ForsakenMovement.Keys.Space > 0 then
-forsakenSounds[math.random(1, #forsakenSounds)]:Play()
-ForsakenMovement.states.jumping = true
-hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, ForsakenConfig.JUMP_VELOCITY, hrp.AssemblyLinearVelocity.Z)
-forsakenApplyAirVelocity()
+baconApplyAirVelocity()
+hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, hrp.AssemblyLinearVelocity.Y - (BaconBhopConfig.GRAVITY * dt), hrp.AssemblyLinearVelocity.Z)
+elseif BaconBhopMovement.Keys.Space > 0 then
+bhopSounds[math.random(1, #bhopSounds)]:Play()
+BaconBhopMovement.states.jumping = true
+hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, BaconBhopConfig.JUMP_VELOCITY, hrp.AssemblyLinearVelocity.Z)
+baconApplyAirVelocity()
 else
-forsakenApplyGroundVelocity(result.Normal)
+baconApplyGroundVelocity(result.Normal)
 end
 end
--- ENGINE LOOP: Nova Movimentação Física da Câmera Livre
 if FreecamAtivada and AncoraFreecam then
 local camMoveVector = Vector3.new(0, 0, 0)
 if UserInputService:IsKeyDown(Enum.KeyCode.W) then camMoveVector = camMoveVector + Cam.CFrame.LookVector end
@@ -1050,10 +812,57 @@ if UserInputService:IsKeyDown(Enum.KeyCode.Space) then camMoveVector = camMoveVe
 if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then camMoveVector = camMoveVector - Vector3.new(0, 1, 0) end
 if camMoveVector.Magnitude > 0 then AncoraFreecam.CFrame = AncoraFreecam.CFrame + (camMoveVector.Unit * VelocidadeFreecam) end
 end
-if isSpeedBoostActive and not isFlyActive and not FreecamAtivada and not isForsakenBhopActive then
+if isSpeedBoostActive and not isFlyActive and not FreecamAtivada and not isBaconBhopActive then
 if hum and hum.WalkSpeed ~= currentSpeed then hum.WalkSpeed = currentSpeed end
 end
 if isFlyActive and hrp and hum and not FreecamAtivada then
 local flyVelocity = Vector3.new(0, 0, 0)
 if UserInputService:IsKeyDown(Enum.KeyCode.W) then flyVelocity = flyVelocity + Cam.CFrame.LookVector end
-if UserInputService:IsKeyDown(Enum.Ke
+if UserInputService:IsKeyDown(Enum.KeyCode.S) then flyVelocity = flyVelocity - Cam.CFrame.LookVector end
+if UserInputService:IsKeyDown(Enum.KeyCode.A) then flyVelocity = flyVelocity - Cam.CFrame.RightVector end
+if UserInputService:IsKeyDown(Enum.KeyCode.D) then flyVelocity = flyVelocity + Cam.CFrame.RightVector end
+hrp.Velocity = flyVelocity.Magnitude > 0 and flyVelocity.Unit * currentFlySpeed or Vector3.new(0,0,0)
+end
+if isExpanded and not AutoPlayInocenteAtivado then
+for _, p in pairs(Players:GetPlayers()) do
+if p ~= LocalPlayer and p.Character then
+local enemyHrp = p.Character:FindFirstChild("HumanoidRootPart")
+if enemyHrp then
+local customBox = p.Character:FindFirstChild("BaconCustomHitbox")
+if not customBox then customBox = Instance.new("Part") customBox.Name = "BaconCustomHitbox" customBox.Anchored = true customBox.CanCollide = false customBox.Parent = p.Character end
+customBox.Size = currentHitboxSize customBox.CFrame = enemyHrp.CFrame customBox.Color = currentHitboxColor customBox.Transparency = currentHitboxTransparency
+end
+end
+end
+end
+if MasterUniversalAimbot and AimbotAtivoPorTecla and not FreecamAtivada then
+if AlvoAtualGrudado and (not AlvoAtualGrudado.Parent or AlvoAtualGrudado.Parent:FindFirstChildOfClass("Humanoid").Health <= 0) then AlvoAtualGrudado = nil end
+if not AlvoAtualGrudado then AlvoAtualGrudado = obterAlvoAimbotUniversal() end
+if AlvoAtualGrudado then Cam.CFrame = CFrame.new(Cam.CFrame.Position, AlvoAtualGrudado.Position) end
+end
+if PlataformaAtivada and PlataformaObjeto and hrp then PlataformaObjeto.CFrame = CFrame.new(hrp.Position.X, AlturaPlataforma, hrp.Position.Z) end
+end)
+LocalPlayer.Idled:Connect(function() if AntiAFKAtivado then VirtualUser:Button2Down(Vector2.new(0,0), Cam.CFrame) task.wait(1) VirtualUser:Button2Up(Vector2.new(0,0), Cam.CFrame) end end)
+Connections.InputBegan = UserInputService.InputBegan:Connect(function(input, gpe)
+if UserInputService:GetFocusedTextBox() then return end
+if PlataformaAtivada and PlataformaObjeto then
+if input.KeyCode == Enum.KeyCode.E then AlturaPlataforma = AlturaPlataforma + VelocidadeElevador elseif input.KeyCode == Enum.KeyCode.Q then AlturaPlataforma = AlturaPlataforma - VelocidadeElevador end
+end
+if input.KeyCode == Enum.KeyCode.P and UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt) and not gpe then
+local novoEstado = not FreecamAtivada toggleFreecam(novoEstado)
+pcall(function() freecamToggleSwitch.BackgroundColor3 = novoEstado and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(100, 100, 100) end)
+end
+if input.KeyCode == AimbotKey and not gpe and MasterUniversalAimbot then AimbotAtivoPorTecla = not AimbotAtivoPorTecla if not AimbotAtivoPorTecla then AlvoAtualGrudado = nil end end
+-- COMPUTAÇÃO CORRIGIDA DE MOVIMENTO WASD / SPACE PARA O MOTOR DO BACON BHOP
+if input.KeyCode and BaconBhopMovement.Keys[input.KeyCode.Name] then BaconBhopMovement.Keys[input.KeyCode.Name] = 1 end
+if input.KeyCode == ToggleKey then mainFrame.Visible = not mainFrame.Visible
+elseif input.KeyCode == DestroyKey then
+for _, conn in pairs(Connections) do if conn then conn:Disconnect() end end
+resetAllHitboxes() toggleFreecam(false)
+if PlataformaObjeto then PlataformaObjeto:Destroy() end if AFKPlatform then AFKPlatform:Destroy() end
+if BaconBhopMovement.mover then BaconBhopMovement.mover:Destroy() end screenGui:Destroy()
+end
+end)
+Connections.InputEnded = UserInputService.InputEnded:Connect(function(input, gpe)
+if input.KeyCode and BaconBhopMovement.Keys[input.KeyCode.Name] then BaconBhopMovement.Keys[input.KeyCode.Name] = 0 end
+end)
